@@ -4,14 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GEO Monitor — Teleworker</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.8.0/Recharts.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/prop-types@15/prop-types.min.js" crossorigin></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.2/babel.min.js" crossorigin></script>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #F4F4F8; }
+    body { background: #F4F4F8; font-family: 'DM Sans', sans-serif; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
     select { outline: none; }
     button:hover { opacity: 0.9; }
@@ -22,7 +23,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/babel">
+  <script type="text/babel" data-presets="react">
     const { useState, useEffect } = React;
     const {
       LineChart, Line, BarChart, Bar, RadarChart, Radar, PolarGrid,
@@ -30,1197 +31,716 @@
       PieChart, Pie, Cell, Legend, Area, AreaChart
     } = Recharts;
 
+    const CI = {
+      text: "#464653", button: "#8FF4D2", highlight: "#F88888",
+      secondary: "#A4B1EF", primary: "#6768A6", bg: "#FFFFFB",
+    };
 
-const CI = {
-  text: "#464653",
-  button: "#8FF4D2",
-  highlight: "#F88888",
-  secondary: "#A4B1EF",
-  primary: "#6768A6",
-  bg: "#FFFFFB",
-};
+    const engines = ["ChatGPT", "Gemini", "Perplexity", "Claude", "Copilot"];
+    const engineColors = ["#10a37f", "#4285F4", "#20B2AA", "#C084FC", "#0078D4"];
 
-const engines = ["ChatGPT", "Gemini", "Perplexity", "Claude", "Copilot"];
-const engineColors = ["#10a37f", "#4285F4", "#20B2AA", "#C084FC", "#0078D4"];
+    const mentionTrend = [
+      { date: "1/1",  ChatGPT: 42, Gemini: 28, Perplexity: 35, Claude: 18, Copilot: 12 },
+      { date: "1/8",  ChatGPT: 48, Gemini: 31, Perplexity: 38, Claude: 22, Copilot: 14 },
+      { date: "1/15", ChatGPT: 45, Gemini: 36, Perplexity: 41, Claude: 25, Copilot: 16 },
+      { date: "1/22", ChatGPT: 55, Gemini: 40, Perplexity: 44, Claude: 30, Copilot: 19 },
+      { date: "2/1",  ChatGPT: 60, Gemini: 44, Perplexity: 50, Claude: 35, Copilot: 22 },
+      { date: "2/8",  ChatGPT: 58, Gemini: 48, Perplexity: 55, Claude: 40, Copilot: 25 },
+      { date: "2/15", ChatGPT: 65, Gemini: 52, Perplexity: 60, Claude: 44, Copilot: 28 },
+      { date: "2/22", ChatGPT: 70, Gemini: 56, Perplexity: 64, Claude: 50, Copilot: 31 },
+    ];
 
-const mentionTrend = [
-  { date: "1/1", ChatGPT: 42, Gemini: 28, Perplexity: 35, Claude: 18, Copilot: 12 },
-  { date: "1/8", ChatGPT: 48, Gemini: 31, Perplexity: 38, Claude: 22, Copilot: 14 },
-  { date: "1/15", ChatGPT: 45, Gemini: 36, Perplexity: 41, Claude: 25, Copilot: 16 },
-  { date: "1/22", ChatGPT: 55, Gemini: 40, Perplexity: 44, Claude: 30, Copilot: 19 },
-  { date: "2/1", ChatGPT: 60, Gemini: 44, Perplexity: 50, Claude: 35, Copilot: 22 },
-  { date: "2/8", ChatGPT: 58, Gemini: 48, Perplexity: 55, Claude: 40, Copilot: 25 },
-  { date: "2/15", ChatGPT: 65, Gemini: 52, Perplexity: 60, Claude: 44, Copilot: 28 },
-  { date: "2/22", ChatGPT: 70, Gemini: 56, Perplexity: 64, Claude: 50, Copilot: 31 },
-];
+    const sovData = [
+      { name: "我方品牌", value: 34, color: CI.primary },
+      { name: "競品 A",   value: 28, color: CI.secondary },
+      { name: "競品 B",   value: 20, color: CI.highlight },
+      { name: "競品 C",   value: 12, color: CI.button },
+      { name: "其他",     value: 6,  color: "#D0D0D8" },
+    ];
 
-const sovData = [
-  { name: "我方品牌", value: 34, color: CI.primary },
-  { name: "競品 A", value: 28, color: CI.secondary },
-  { name: "競品 B", value: 20, color: CI.highlight },
-  { name: "競品 C", value: 12, color: CI.button },
-  { name: "其他", value: 6, color: "#D0D0D8" },
-];
+    const queryData = [
+      { query: "AI 協作工具推薦",   mentions: 82, sentiment: 91, cited: 68 },
+      { query: "遠端工作平台比較",  mentions: 74, sentiment: 85, cited: 72 },
+      { query: "企業數位轉型工具",  mentions: 61, sentiment: 78, cited: 55 },
+      { query: "HR 科技解決方案",   mentions: 55, sentiment: 72, cited: 48 },
+      { query: "團隊溝通工具",      mentions: 48, sentiment: 88, cited: 41 },
+      { query: "專案管理軟體",      mentions: 43, sentiment: 65, cited: 37 },
+    ];
 
-const queryData = [
-  { query: "AI 協作工具推薦", mentions: 82, sentiment: 91, cited: 68 },
-  { query: "遠端工作平台比較", mentions: 74, sentiment: 85, cited: 72 },
-  { query: "企業數位轉型工具", mentions: 61, sentiment: 78, cited: 55 },
-  { query: "HR 科技解決方案", mentions: 55, sentiment: 72, cited: 48 },
-  { query: "團隊溝通工具", mentions: 48, sentiment: 88, cited: 41 },
-  { query: "專案管理軟體", mentions: 43, sentiment: 65, cited: 37 },
-];
+    const radarData = [
+      { metric: "提及率",   brand: 82, competitor: 68 },
+      { metric: "引用率",   brand: 74, competitor: 55 },
+      { metric: "正向情緒", brand: 88, competitor: 72 },
+      { metric: "關鍵字覆蓋", brand: 70, competitor: 62 },
+      { metric: "排名優先", brand: 65, competitor: 58 },
+      { metric: "內容深度", brand: 78, competitor: 60 },
+    ];
 
-const radarData = [
-  { metric: "提及率", brand: 82, competitor: 68 },
-  { metric: "引用率", brand: 74, competitor: 55 },
-  { metric: "正向情緒", brand: 88, competitor: 72 },
-  { metric: "關鍵字覆蓋", brand: 70, competitor: 62 },
-  { metric: "排名優先", brand: 65, competitor: 58 },
-  { metric: "內容深度", brand: 78, competitor: 60 },
-];
+    const alerts = [
+      { type: "warn",    msg: "Perplexity 上「遠端工作平台」查詢競品 A 引用率上升 12%", time: "2h 前" },
+      { type: "success", msg: "ChatGPT 新增對您品牌的正向引用，情緒分數 +8",            time: "5h 前" },
+      { type: "danger",  msg: "Gemini 針對「HR 科技」查詢移除品牌引用連結",              time: "1d 前" },
+      { type: "info",    msg: "Claude 新增支援 schema 解析，建議更新結構化資料",         time: "2d 前" },
+    ];
 
-const alerts = [
-  { type: "warn", msg: "Perplexity 上「遠端工作平台」查詢競品 A 引用率上升 12%", time: "2h 前" },
-  { type: "success", msg: "ChatGPT 新增對您品牌的正向引用，情緒分數 +8", time: "5h 前" },
-  { type: "danger", msg: "Gemini 針對「HR 科技」查詢移除品牌引用連結", time: "1d 前" },
-  { type: "info", msg: "Claude 新增支援 schema 解析，建議更新結構化資料", time: "2d 前" },
-];
+    const alertStyle = {
+      warn:    { border: CI.highlight, bg: "#FFF5F5", icon: "⚠️" },
+      success: { border: CI.button,    bg: "#F0FFF8", icon: "✅" },
+      danger:  { border: "#E85454",    bg: "#FFF0F0", icon: "🚨" },
+      info:    { border: CI.secondary, bg: "#F4F5FF", icon: "ℹ️" },
+    };
 
-const alertStyle = {
-  warn: { border: CI.highlight, bg: "#FFF5F5", icon: "⚠️" },
-  success: { border: CI.button, bg: "#F0FFF8", icon: "✅" },
-  danger: { border: "#E85454", bg: "#FFF0F0", icon: "🚨" },
-  info: { border: CI.secondary, bg: "#F4F5FF", icon: "ℹ️" },
-};
-
-const MetricCard = ({ label, value, delta, unit = "", sublabel }) => (
-  <div style={{
-    background: CI.bg,
-    border: `1.5px solid #E8E8F0`,
-    borderRadius: 16,
-    padding: "20px 24px",
-    flex: 1,
-    minWidth: 160,
-    position: "relative",
-    overflow: "hidden",
-  }}>
-    <div style={{
-      position: "absolute", top: 0, right: 0,
-      width: 80, height: 80,
-      background: `${CI.primary}10`,
-      borderRadius: "0 16px 0 80px",
-    }} />
-    <div style={{ fontSize: 12, color: "#888898", fontFamily: "'DM Sans', sans-serif", marginBottom: 8, fontWeight: 500 }}>
-      {label}
-    </div>
-    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-      <span style={{ fontSize: 32, fontWeight: 700, color: CI.text, fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>
-        {value}
-      </span>
-      <span style={{ fontSize: 14, color: "#888898" }}>{unit}</span>
-    </div>
-    {delta !== undefined && (
-      <div style={{
-        marginTop: 8, fontSize: 12, fontWeight: 600,
-        color: delta >= 0 ? "#1AAE6F" : "#E85454",
-        fontFamily: "'DM Sans', sans-serif",
-      }}>
-        {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)}% vs 上週
+    const MetricCard = ({ label, value, delta, unit = "", sublabel }) => (
+      <div style={{ background: CI.bg, border: "1.5px solid #E8E8F0", borderRadius: 16, padding: "20px 24px", flex: 1, minWidth: 160, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, width: 80, height: 80, background: `${CI.primary}10`, borderRadius: "0 16px 0 80px" }} />
+        <div style={{ fontSize: 12, color: "#888898", marginBottom: 8, fontWeight: 500 }}>{label}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontSize: 32, fontWeight: 700, color: CI.text, fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>{value}</span>
+          <span style={{ fontSize: 14, color: "#888898" }}>{unit}</span>
+        </div>
+        {delta !== undefined && (
+          <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: delta >= 0 ? "#1AAE6F" : "#E85454" }}>
+            {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)}% vs 上週
+          </div>
+        )}
+        {sublabel && <div style={{ fontSize: 11, color: "#AAAABC", marginTop: 4 }}>{sublabel}</div>}
       </div>
-    )}
-    {sublabel && <div style={{ fontSize: 11, color: "#AAAABC", marginTop: 4 }}>{sublabel}</div>}
-  </div>
-);
+    );
 
-const SectionTitle = ({ children, badge }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-    <h3 style={{
-      fontSize: 15, fontWeight: 700, color: CI.text,
-      fontFamily: "'Syne', sans-serif", margin: 0,
-    }}>
-      {children}
-    </h3>
-    {badge && (
-      <span style={{
-        background: `${CI.primary}18`, color: CI.primary,
-        fontSize: 11, fontWeight: 600, padding: "2px 8px",
-        borderRadius: 20, fontFamily: "'DM Sans', sans-serif",
-      }}>
-        {badge}
-      </span>
-    )}
-  </div>
-);
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: "white", border: "1px solid #E8E8F0",
-      borderRadius: 10, padding: "10px 14px", fontSize: 12,
-      boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-    }}>
-      <div style={{ fontWeight: 700, marginBottom: 6, color: CI.text }}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color, display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, display: "inline-block" }} />
-          {p.name}: <strong>{p.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-function GEODashboard() {
-  const [activeEngine, setActiveEngine] = useState("all");
-  const [activeTab, setActiveTab] = useState("overview");
-  const [animIn, setAnimIn] = useState(false);
-
-  // Settings state
-  const [monitoredQueries, setMonitoredQueries] = useState([
-    { id: 1, text: "AI 協作工具推薦", category: "產品", active: true },
-    { id: 2, text: "遠端工作平台比較", category: "產品", active: true },
-    { id: 3, text: "企業數位轉型工具", category: "行銷", active: true },
-    { id: 4, text: "HR 科技解決方案", category: "行銷", active: true },
-    { id: 5, text: "團隊溝通工具", category: "產品", active: false },
-    { id: 6, text: "專案管理軟體", category: "競品", active: true },
-  ]);
-  const [competitors, setCompetitors] = useState([
-    { id: 1, name: "競品 A", domain: "compa.com", active: true, color: CI.secondary },
-    { id: 2, name: "競品 B", domain: "compb.io", active: true, color: CI.highlight },
-    { id: 3, name: "競品 C", domain: "compc.co", active: true, color: "#D0D0D8" },
-  ]);
-  const [newQuery, setNewQuery] = useState("");
-  const [newQueryCat, setNewQueryCat] = useState("產品");
-  const [newCompName, setNewCompName] = useState("");
-  const [newCompDomain, setNewCompDomain] = useState("");
-  const [settingsTab, setSettingsTab] = useState("queries");
-  const [nextQId, setNextQId] = useState(7);
-  const [nextCId, setNextCId] = useState(4);
-
-  const addQuery = () => {
-    if (!newQuery.trim()) return;
-    setMonitoredQueries(prev => [...prev, { id: nextQId, text: newQuery.trim(), category: newQueryCat, active: true }]);
-    setNextQId(n => n + 1);
-    setNewQuery("");
-  };
-
-  const removeQuery = (id) => setMonitoredQueries(prev => prev.filter(q => q.id !== id));
-  const toggleQuery = (id) => setMonitoredQueries(prev => prev.map(q => q.id === id ? { ...q, active: !q.active } : q));
-
-  const addCompetitor = () => {
-    if (!newCompName.trim()) return;
-    const colors = [CI.secondary, CI.highlight, "#D0D0D8", "#F5A623", "#20B2AA"];
-    setCompetitors(prev => [...prev, { id: nextCId, name: newCompName.trim(), domain: newCompDomain.trim(), active: true, color: colors[nextCId % colors.length] }]);
-    setNextCId(n => n + 1);
-    setNewCompName("");
-    setNewCompDomain("");
-  };
-
-  const removeCompetitor = (id) => setCompetitors(prev => prev.filter(c => c.id !== id));
-  const toggleCompetitor = (id) => setCompetitors(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
-
-  useEffect(() => {
-    setTimeout(() => setAnimIn(true), 100);
-  }, []);
-
-  const tabs = [
-    { id: "overview", label: "總覽" },
-    { id: "engines", label: "引擎分析" },
-    { id: "queries", label: "查詢監控" },
-    { id: "competitor", label: "競品對比" },
-    { id: "settings", label: "設定" },
-  ];
-
-  return (
-    <div style={{
-      fontFamily: "'DM Sans', sans-serif",
-      background: "#F4F4F8",
-      minHeight: "100vh",
-      color: CI.text,
-    }}>
-      {/* Google Fonts */}
-      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-
-      {/* Sidebar */}
-      <div style={{
-        position: "fixed", left: 0, top: 0, bottom: 0,
-        width: 220, background: CI.bg,
-        borderRight: "1.5px solid #E8E8F0",
-        display: "flex", flexDirection: "column",
-        padding: "24px 0", zIndex: 100,
-      }}>
-        {/* Logo */}
-        <div style={{ padding: "0 20px 24px", borderBottom: "1px solid #E8E8F0" }}>
-          <div style={{
-            fontSize: 11, fontWeight: 600, letterSpacing: 2,
-            color: "#AAAABC", marginBottom: 4,
-          }}>TELEWORKER</div>
-          <div style={{
-            fontSize: 18, fontWeight: 800, color: CI.primary,
-            fontFamily: "'Syne', sans-serif", lineHeight: 1.1,
-          }}>GEO</div>
-          <div style={{
-            marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5,
-            background: `${CI.button}40`, borderRadius: 20,
-            padding: "3px 10px", fontSize: 11, fontWeight: 600, color: "#1AAE6F",
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#1AAE6F", animation: "pulse 2s infinite" }} />
-            即時監控中
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav style={{ padding: "16px 12px", flex: 1 }}>
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                width: "100%", textAlign: "left",
-                padding: "10px 12px", borderRadius: 10, marginBottom: 4,
-                border: "none", cursor: "pointer",
-                background: activeTab === tab.id ? `${CI.primary}15` : "transparent",
-                color: activeTab === tab.id ? CI.primary : "#888898",
-                fontWeight: activeTab === tab.id ? 700 : 500,
-                fontSize: 14,
-                fontFamily: "'DM Sans', sans-serif",
-                transition: "all 0.15s",
-                borderLeft: activeTab === tab.id ? `3px solid ${CI.primary}` : "3px solid transparent",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-
-          <div style={{ margin: "20px 0 8px 12px", fontSize: 10, color: "#CCCCDA", fontWeight: 600, letterSpacing: 1.5 }}>
-            AI 引擎
-          </div>
-          {engines.map((e, i) => (
-            <button
-              key={e}
-              onClick={() => setActiveEngine(activeEngine === e ? "all" : e)}
-              style={{
-                width: "100%", textAlign: "left",
-                padding: "8px 12px", borderRadius: 8, marginBottom: 2,
-                border: "none", cursor: "pointer",
-                background: activeEngine === e ? `${engineColors[i]}18` : "transparent",
-                color: activeEngine === e ? engineColors[i] : "#AAAABC",
-                fontWeight: 500, fontSize: 13,
-                fontFamily: "'DM Sans', sans-serif",
-                display: "flex", alignItems: "center", gap: 8,
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: engineColors[i] }} />
-              {e}
-            </button>
-          ))}
-        </nav>
-
-        {/* Brand */}
-        <div style={{ padding: "12px 20px", borderTop: "1px solid #E8E8F0" }}>
-          <div style={{ fontSize: 11, color: "#CCCCDA" }}>監控品牌</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: CI.text, marginTop: 2 }}>Teleworker</div>
-          <div style={{
-            marginTop: 8, fontSize: 11, color: "#888898",
-            background: "#F0F0F5", borderRadius: 6, padding: "4px 8px",
-          }}>
-            更新: 每 6 小時
-          </div>
-        </div>
+    const SectionTitle = ({ children, badge }) => (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: CI.text, fontFamily: "'Syne', sans-serif", margin: 0 }}>{children}</h3>
+        {badge && <span style={{ background: `${CI.primary}18`, color: CI.primary, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20 }}>{badge}</span>}
       </div>
+    );
 
-      {/* Main Content */}
-      <div style={{ marginLeft: 220, padding: "28px 32px" }}>
-
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
-          <div>
-            <h1 style={{
-              fontSize: 26, fontWeight: 800, color: CI.text,
-              fontFamily: "'Syne', sans-serif", margin: 0,
-            }}>
-              GEO
-            </h1>
-            <p style={{ margin: "6px 0 0", fontSize: 14, color: "#888898" }}>
-              跨 AI 引擎品牌曝光、引用率與競品對比監控 · 2024 Q1
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <select style={{
-              padding: "8px 14px", borderRadius: 10, border: "1.5px solid #E8E8F0",
-              background: CI.bg, color: CI.text, fontSize: 13,
-              fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
-            }}>
-              <option>過去 30 天</option>
-              <option>過去 90 天</option>
-              <option>自訂區間</option>
-            </select>
-            <button style={{
-              padding: "8px 18px", borderRadius: 10, border: "none",
-              background: CI.primary, color: "white",
-              fontWeight: 600, fontSize: 13, cursor: "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              ↓ 匯出報告
-            </button>
-          </div>
+    const CustomTooltip = ({ active, payload, label }) => {
+      if (!active || !payload || !payload.length) return null;
+      return (
+        <div style={{ background: "white", border: "1px solid #E8E8F0", borderRadius: 10, padding: "10px 14px", fontSize: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+          <div style={{ fontWeight: 700, marginBottom: 6, color: CI.text }}>{label}</div>
+          {payload.map((p, i) => (
+            <div key={i} style={{ color: p.color, display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, display: "inline-block" }} />
+              {p.name}: <strong>{p.value}</strong>
+            </div>
+          ))}
         </div>
+      );
+    };
 
-        {/* Metric Cards - always visible */}
-        <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-          <MetricCard label="AI 引擎總提及次數" value="2,847" delta={18} sublabel="跨 5 大引擎統計" />
-          <MetricCard label="平均引用率" value="68" unit="%" delta={5} sublabel="AI 回應中含品牌連結" />
-          <MetricCard label="正向情緒比例" value="84" unit="%" delta={3} sublabel="NLP 情緒分析" />
-          <MetricCard label="查詢關鍵字覆蓋" value="312" unit=" 組" delta={-2} sublabel="觸發品牌提及的查詢" />
-          <MetricCard label="聲量份額 SoV" value="34" unit="%" delta={7} sublabel="vs 主要競品" />
+    function GEODashboard() {
+      const [activeEngine, setActiveEngine] = useState("all");
+      const [activeTab, setActiveTab] = useState("overview");
+      const [monitoredQueries, setMonitoredQueries] = useState([
+        { id: 1, text: "AI 協作工具推薦",  category: "產品", active: true },
+        { id: 2, text: "遠端工作平台比較", category: "產品", active: true },
+        { id: 3, text: "企業數位轉型工具", category: "行銷", active: true },
+        { id: 4, text: "HR 科技解決方案",  category: "行銷", active: true },
+        { id: 5, text: "團隊溝通工具",     category: "產品", active: false },
+        { id: 6, text: "專案管理軟體",     category: "競品", active: true },
+      ]);
+      const [competitors, setCompetitors] = useState([
+        { id: 1, name: "競品 A", domain: "compa.com", active: true,  color: CI.secondary },
+        { id: 2, name: "競品 B", domain: "compb.io",  active: true,  color: CI.highlight },
+        { id: 3, name: "競品 C", domain: "compc.co",  active: true,  color: "#D0D0D8" },
+      ]);
+      const [newQuery, setNewQuery] = useState("");
+      const [newQueryCat, setNewQueryCat] = useState("產品");
+      const [newCompName, setNewCompName] = useState("");
+      const [newCompDomain, setNewCompDomain] = useState("");
+      const [settingsTab, setSettingsTab] = useState("queries");
+      const [nextQId, setNextQId] = useState(7);
+      const [nextCId, setNextCId] = useState(4);
+
+      const addQuery = () => {
+        if (!newQuery.trim()) return;
+        setMonitoredQueries(prev => [...prev, { id: nextQId, text: newQuery.trim(), category: newQueryCat, active: true }]);
+        setNextQId(n => n + 1);
+        setNewQuery("");
+      };
+      const removeQuery = (id) => setMonitoredQueries(prev => prev.filter(q => q.id !== id));
+      const toggleQuery  = (id) => setMonitoredQueries(prev => prev.map(q => q.id === id ? { ...q, active: !q.active } : q));
+      const addCompetitor = () => {
+        if (!newCompName.trim()) return;
+        const colors = [CI.secondary, CI.highlight, "#D0D0D8", "#F5A623", "#20B2AA"];
+        setCompetitors(prev => [...prev, { id: nextCId, name: newCompName.trim(), domain: newCompDomain.trim(), active: true, color: colors[nextCId % colors.length] }]);
+        setNextCId(n => n + 1); setNewCompName(""); setNewCompDomain("");
+      };
+      const removeCompetitor = (id) => setCompetitors(prev => prev.filter(c => c.id !== id));
+      const toggleCompetitor = (id) => setCompetitors(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
+
+      const tabs = [
+        { id: "overview",   label: "總覽" },
+        { id: "engines",    label: "引擎分析" },
+        { id: "queries",    label: "查詢監控" },
+        { id: "competitor", label: "競品對比" },
+        { id: "settings",   label: "設定" },
+      ];
+
+      const inputStyle = { width: "100%", padding: "10px 14px", borderRadius: 10, border: "1.5px solid #E8E8F0", fontSize: 13, outline: "none", color: CI.text, background: "#F8F8FC", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif" };
+      const cardStyle  = { background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" };
+
+      const Toggle = ({ active, onToggle }) => (
+        <div onClick={onToggle} style={{ width: 34, height: 18, borderRadius: 9, cursor: "pointer", background: active ? CI.primary : "#CCCCDA", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+          <div style={{ width: 14, height: 14, borderRadius: "50%", background: "white", position: "absolute", top: 2, left: active ? 18 : 2, transition: "left 0.2s" }} />
         </div>
+      );
 
-        {/* ── 總覽 ── */}
-        {activeTab === "overview" && <>
-        {/* Row 1: Trend + SOV */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, marginBottom: 20 }}>
+      return (
+        <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#F4F4F8", minHeight: "100vh", color: CI.text }}>
 
-          {/* Trend */}
-          <div style={{
-            background: CI.bg, borderRadius: 16,
-            border: "1.5px solid #E8E8F0", padding: "24px",
-          }}>
-            <SectionTitle badge="即時">跨引擎品牌提及趨勢</SectionTitle>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={mentionTrend}>
-                <defs>
-                  {engines.map((e, i) => (
-                    <linearGradient key={e} id={`g${i}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={engineColors[i]} stopOpacity={0.15} />
-                      <stop offset="95%" stopColor={engineColors[i]} stopOpacity={0} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                <Tooltip content={<CustomTooltip />} />
-                {engines.map((e, i) => (
-                  <Area
-                    key={e} type="monotone"
-                    dataKey={e} stroke={engineColors[i]}
-                    strokeWidth={2} fill={`url(#g${i})`}
-                    opacity={activeEngine === "all" || activeEngine === e ? 1 : 0.15}
-                  />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
-            <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
+          {/* ── Sidebar ── */}
+          <div style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 220, background: CI.bg, borderRight: "1.5px solid #E8E8F0", display: "flex", flexDirection: "column", padding: "24px 0", zIndex: 100, overflowY: "auto" }}>
+            <div style={{ padding: "0 20px 24px", borderBottom: "1px solid #E8E8F0" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 2, color: "#AAAABC", marginBottom: 4 }}>TELEWORKER</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: CI.primary, fontFamily: "'Syne', sans-serif" }}>GEO</div>
+              <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5, background: `${CI.button}40`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 600, color: "#1AAE6F" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#1AAE6F", animation: "pulse 2s infinite", display: "inline-block" }} />
+                即時監控中
+              </div>
+            </div>
+
+            <nav style={{ padding: "16px 12px", flex: 1 }}>
+              {tabs.map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 10, marginBottom: 4, border: "none", cursor: "pointer", background: activeTab === tab.id ? `${CI.primary}15` : "transparent", color: activeTab === tab.id ? CI.primary : "#888898", fontWeight: activeTab === tab.id ? 700 : 500, fontSize: 14, fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s", borderLeft: `3px solid ${activeTab === tab.id ? CI.primary : "transparent"}` }}>
+                  {tab.label}
+                </button>
+              ))}
+              <div style={{ margin: "20px 0 8px 12px", fontSize: 10, color: "#CCCCDA", fontWeight: 600, letterSpacing: 1.5 }}>AI 引擎</div>
               {engines.map((e, i) => (
-                <div key={e} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
-                  <span style={{ width: 10, height: 3, borderRadius: 2, background: engineColors[i], display: "inline-block" }} />
-                  <span style={{ color: "#888898" }}>{e}</span>
-                </div>
+                <button key={e} onClick={() => setActiveEngine(activeEngine === e ? "all" : e)} style={{ width: "100%", textAlign: "left", padding: "8px 12px", borderRadius: 8, marginBottom: 2, border: "none", cursor: "pointer", background: activeEngine === e ? `${engineColors[i]}18` : "transparent", color: activeEngine === e ? engineColors[i] : "#AAAABC", fontWeight: 500, fontSize: 13, fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: engineColors[i], display: "inline-block" }} />{e}
+                </button>
               ))}
+            </nav>
+
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #E8E8F0" }}>
+              <div style={{ fontSize: 11, color: "#CCCCDA" }}>監控品牌</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: CI.text, marginTop: 2 }}>Teleworker</div>
+              <div style={{ marginTop: 8, fontSize: 11, color: "#888898", background: "#F0F0F5", borderRadius: 6, padding: "4px 8px" }}>更新: 每 6 小時</div>
             </div>
           </div>
 
-          {/* SOV Pie */}
-          <div style={{
-            background: CI.bg, borderRadius: 16,
-            border: "1.5px solid #E8E8F0", padding: "24px",
-          }}>
-            <SectionTitle>品牌聲量份額 SoV</SectionTitle>
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie
-                  data={sovData} cx="50%" cy="50%"
-                  innerRadius={50} outerRadius={80}
-                  paddingAngle={3} dataKey="value"
-                >
-                  {sovData.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => `${v}%`} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {sovData.map((d, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, display: "inline-block" }} />
-                    <span style={{ color: "#666676" }}>{d.name}</span>
-                  </div>
-                  <span style={{ fontWeight: 700, color: CI.text }}>{d.value}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          {/* ── Main ── */}
+          <div style={{ marginLeft: 220, padding: "28px 32px" }}>
 
-        {/* Row 2: Radar + Query Table */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 20, marginBottom: 20 }}>
-
-          {/* Radar */}
-          <div style={{
-            background: CI.bg, borderRadius: 16,
-            border: "1.5px solid #E8E8F0", padding: "24px",
-          }}>
-            <SectionTitle>品牌 vs 競品綜合表現</SectionTitle>
-            <ResponsiveContainer width="100%" height={240}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="#F0F0F5" />
-                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "#888898" }} />
-                <Radar name="我方品牌" dataKey="brand" stroke={CI.primary} fill={CI.primary} fillOpacity={0.25} strokeWidth={2} />
-                <Radar name="競品平均" dataKey="competitor" stroke={CI.highlight} fill={CI.highlight} fillOpacity={0.15} strokeWidth={2} strokeDasharray="4 4" />
-                <Legend iconType="line" wrapperStyle={{ fontSize: 12 }} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Query Table */}
-          <div style={{
-            background: CI.bg, borderRadius: 16,
-            border: "1.5px solid #E8E8F0", padding: "24px",
-          }}>
-            <SectionTitle badge="Top 6">高曝光查詢關鍵字</SectionTitle>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {queryData.map((q, i) => (
-                <div key={i} style={{
-                  display: "grid", gridTemplateColumns: "1fr 80px 80px 80px",
-                  alignItems: "center", gap: 12,
-                  padding: "10px 14px", borderRadius: 10,
-                  background: i === 0 ? `${CI.primary}08` : "transparent",
-                  border: i === 0 ? `1px solid ${CI.primary}20` : "1px solid transparent",
-                }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: CI.text }}>{q.query}</div>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 11, color: "#AAAABC", marginBottom: 2 }}>提及</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: CI.primary }}>{q.mentions}</div>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 11, color: "#AAAABC", marginBottom: 2 }}>情緒</div>
-                    <div style={{
-                      fontSize: 14, fontWeight: 700,
-                      color: q.sentiment > 80 ? "#1AAE6F" : q.sentiment > 70 ? "#F5A623" : CI.highlight,
-                    }}>
-                      {q.sentiment}%
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 11, color: "#AAAABC", marginBottom: 2 }}>引用</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: CI.secondary }}>{q.cited}</div>
-                  </div>
-                </div>
-              ))}
-              <div style={{
-                display: "grid", gridTemplateColumns: "1fr 80px 80px 80px",
-                padding: "2px 14px", gap: 12,
-              }}>
-                <div />
-                {["提及次數", "情緒分數", "引用次數"].map(h => (
-                  <div key={h} style={{ textAlign: "center", fontSize: 10, color: "#CCCCDA", fontWeight: 600 }} />
-                ))}
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
+              <div>
+                <h1 style={{ fontSize: 26, fontWeight: 800, color: CI.text, fontFamily: "'Syne', sans-serif", margin: 0 }}>GEO</h1>
+                <p style={{ margin: "6px 0 0", fontSize: 14, color: "#888898" }}>跨 AI 引擎品牌曝光、引用率與競品對比監控 · 2024 Q1</p>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Row 3: Engine Bar + Alerts */}
-        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
-
-          {/* Engine comparison bar */}
-          <div style={{
-            background: CI.bg, borderRadius: 16,
-            border: "1.5px solid #E8E8F0", padding: "24px",
-          }}>
-            <SectionTitle>各 AI 引擎提及 & 引用表現</SectionTitle>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={engines.map((e, i) => ({
-                name: e,
-                提及數: [70, 56, 64, 50, 31][i],
-                引用數: [52, 40, 58, 38, 22][i],
-              }))} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#888898" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="提及數" fill={CI.primary} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="引用數" fill={CI.secondary} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Alerts */}
-          <div style={{
-            background: CI.bg, borderRadius: 16,
-            border: "1.5px solid #E8E8F0", padding: "24px",
-          }}>
-            <SectionTitle badge={`${alerts.length} 則`}>智能預警</SectionTitle>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {alerts.map((a, i) => {
-                const s = alertStyle[a.type];
-                return (
-                  <div key={i} style={{
-                    background: s.bg,
-                    borderLeft: `3px solid ${s.border}`,
-                    borderRadius: "0 10px 10px 0",
-                    padding: "10px 14px",
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div style={{ fontSize: 13, color: CI.text, lineHeight: 1.4, flex: 1 }}>
-                        {s.icon} {a.msg}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 11, color: "#AAAABC", marginTop: 4 }}>{a.time}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        </>}
-
-        {/* ── 引擎分析 ── */}
-        {activeTab === "engines" && <>
-          {/* Per-engine detail cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 20 }}>
-            {engines.map((e, i) => {
-              const mentions = [70, 56, 64, 50, 31][i];
-              const citations = [52, 40, 58, 38, 22][i];
-              const sentiment = [88, 80, 86, 91, 74][i];
-              const citationRate = Math.round(citations / mentions * 100);
-              return (
-                <div key={e} style={{
-                  background: CI.bg, borderRadius: 14,
-                  border: `1.5px solid ${engineColors[i]}30`,
-                  padding: "18px 16px",
-                  borderTop: `3px solid ${engineColors[i]}`,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: engineColors[i] }} />
-                    <span style={{ fontWeight: 700, fontSize: 14, color: CI.text, fontFamily: "'Syne', sans-serif" }}>{e}</span>
-                  </div>
-                  {[
-                    { label: "提及次數", val: mentions, color: engineColors[i] },
-                    { label: "引用次數", val: citations, color: CI.secondary },
-                    { label: "引用率", val: `${citationRate}%`, color: citationRate > 75 ? "#1AAE6F" : CI.highlight },
-                    { label: "情緒分數", val: `${sentiment}%`, color: sentiment > 85 ? "#1AAE6F" : "#F5A623" },
-                  ].map(item => (
-                    <div key={item.label} style={{ marginBottom: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#AAAABC", marginBottom: 3 }}>
-                        <span>{item.label}</span>
-                        <span style={{ fontWeight: 700, color: item.color }}>{item.val}</span>
-                      </div>
-                      <div style={{ height: 4, background: "#F0F0F5", borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{
-                          height: "100%", borderRadius: 2,
-                          background: item.color,
-                          width: `${typeof item.val === "string" ? parseInt(item.val) : Math.min(item.val * 1.2, 100)}%`,
-                        }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Engine trend + heatmap row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20, marginBottom: 20 }}>
-            <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-              <SectionTitle badge="週趨勢">各引擎提及趨勢對比</SectionTitle>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={mentionTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  {engines.map((e, i) => (
-                    <Line key={e} type="monotone" dataKey={e} stroke={engineColors[i]} strokeWidth={2} dot={false} />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-              <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
-                {engines.map((e, i) => (
-                  <div key={e} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
-                    <span style={{ width: 12, height: 3, borderRadius: 2, background: engineColors[i], display: "inline-block" }} />
-                    <span style={{ color: "#888898" }}>{e}</span>
-                  </div>
-                ))}
+              <div style={{ display: "flex", gap: 10 }}>
+                <select style={{ padding: "8px 14px", borderRadius: 10, border: "1.5px solid #E8E8F0", background: CI.bg, color: CI.text, fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+                  <option>過去 30 天</option><option>過去 90 天</option><option>自訂區間</option>
+                </select>
+                <button style={{ padding: "8px 18px", borderRadius: 10, border: "none", background: CI.primary, color: "white", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>↓ 匯出報告</button>
               </div>
             </div>
 
-            <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-              <SectionTitle>引擎功能支援矩陣</SectionTitle>
-              {[
-                { feature: "品牌引用連結", support: [true, true, true, false, true] },
-                { feature: "來源標注", support: [true, false, true, true, false] },
-                { feature: "即時網路索引", support: [true, true, true, false, true] },
-                { feature: "結構化資料解析", support: [true, true, false, true, false] },
-                { feature: "多輪對話記憶", support: [true, true, false, true, true] },
-                { feature: "圖片內容理解", support: [true, true, false, true, true] },
-              ].map((row, ri) => (
-                <div key={ri} style={{
-                  display: "grid", gridTemplateColumns: "1fr repeat(5, 32px)",
-                  alignItems: "center", gap: 6, marginBottom: 10,
-                }}>
-                  <span style={{ fontSize: 12, color: CI.text }}>{row.feature}</span>
-                  {row.support.map((s, si) => (
-                    <div key={si} title={engines[si]} style={{
-                      width: 28, height: 28, borderRadius: 8,
-                      background: s ? `${engineColors[si]}25` : "#F0F0F5",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 13,
-                    }}>
-                      {s ? "✓" : "—"}
-                    </div>
-                  ))}
-                </div>
-              ))}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(5, 32px)", gap: 6, marginTop: 6 }}>
-                <span />
-                {engines.map((e, i) => (
-                  <div key={i} style={{ fontSize: 10, color: "#AAAABC", textAlign: "center" }}>{e.slice(0, 3)}</div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Prompt response samples */}
-          <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-            <SectionTitle badge="最新快照">AI 引擎回應樣本監控</SectionTitle>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              {[
-                { engine: "ChatGPT", color: "#10a37f", query: "遠端工作工具推薦", snippet: "Teleworker 是目前市場上整合度最高的遠端協作平台之一，支援非同步溝通與 AI 任務派發，適合中大型企業採用。", cited: true, sentiment: "正向" },
-                { engine: "Perplexity", color: "#20B2AA", query: "AI 協作工具比較", snippet: "根據最新使用者評比，Teleworker 在 AI 整合與工作流自動化方面獲得高度評價，引用來源：TechReview 2024。", cited: true, sentiment: "正向" },
-                { engine: "Gemini", color: "#4285F4", query: "HR 科技解決方案", snippet: "目前主流 HR 科技平台包含 Workday、BambooHR 等，部分整合 AI 功能的新興工具也在市場上嶄露頭角。", cited: false, sentiment: "中性" },
-                { engine: "Claude", color: "#C084FC", query: "企業數位轉型建議", snippet: "Teleworker 提供完整的工作流自動化解決方案，特別在跨部門協作與資料整合方面表現突出。", cited: true, sentiment: "正向" },
-              ].map((s, i) => (
-                <div key={i} style={{
-                  borderRadius: 12, border: `1px solid ${s.color}30`,
-                  padding: "16px", background: `${s.color}05`,
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color }} />
-                      <span style={{ fontWeight: 700, fontSize: 13, color: CI.text }}>{s.engine}</span>
-                    </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <span style={{
-                        fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600,
-                        background: s.cited ? `${CI.button}40` : "#F0F0F5",
-                        color: s.cited ? "#1AAE6F" : "#AAAABC",
-                      }}>{s.cited ? "✓ 引用" : "未引用"}</span>
-                      <span style={{
-                        fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600,
-                        background: s.sentiment === "正向" ? `${CI.primary}15` : "#F0F0F5",
-                        color: s.sentiment === "正向" ? CI.primary : "#888898",
-                      }}>{s.sentiment}</span>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 11, color: "#888898", marginBottom: 6 }}>查詢：{s.query}</div>
-                  <div style={{
-                    fontSize: 13, color: CI.text, lineHeight: 1.6,
-                    background: "white", borderRadius: 8, padding: "10px 12px",
-                    borderLeft: `3px solid ${s.color}`,
-                  }}>
-                    "{s.snippet}"
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>}
-
-        {/* ── 查詢監控 ── */}
-        {activeTab === "queries" && <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-            {/* Full query table */}
-            <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-              <SectionTitle badge="全部">查詢關鍵字監控列表</SectionTitle>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 70px 70px", gap: 8, marginBottom: 8, padding: "0 10px" }}>
-                {["查詢字串", "提及", "引用", "情緒", "SoV"].map(h => (
-                  <div key={h} style={{ fontSize: 11, fontWeight: 600, color: "#AAAABC" }}>{h}</div>
-                ))}
-              </div>
-              {[...queryData, 
-                { query: "工作流程自動化", mentions: 38, sentiment: 70, cited: 30 },
-                { query: "B2B SaaS 工具", mentions: 33, sentiment: 68, cited: 25 },
-                { query: "混合辦公解決方案", mentions: 29, sentiment: 82, cited: 22 },
-                { query: "員工體驗平台", mentions: 24, sentiment: 75, cited: 18 },
-              ].map((q, i) => (
-                <div key={i} style={{
-                  display: "grid", gridTemplateColumns: "1fr 70px 70px 70px 70px",
-                  alignItems: "center", gap: 8, padding: "10px",
-                  borderRadius: 10, marginBottom: 4,
-                  background: i % 2 === 0 ? "#F8F8FC" : "transparent",
-                }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: CI.text }}>{q.query}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: CI.primary, textAlign: "center" }}>{q.mentions}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: CI.secondary, textAlign: "center" }}>{q.cited}</span>
-                  <span style={{
-                    fontSize: 13, fontWeight: 700, textAlign: "center",
-                    color: q.sentiment > 80 ? "#1AAE6F" : q.sentiment > 70 ? "#F5A623" : CI.highlight,
-                  }}>{q.sentiment}%</span>
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700,
-                      background: `${CI.primary}15`, color: CI.primary,
-                      padding: "2px 8px", borderRadius: 8,
-                    }}>{Math.round(q.mentions / 2.4)}%</span>
-                  </div>
-                </div>
-              ))}
+            {/* KPI Cards - always visible */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+              <MetricCard label="AI 引擎總提及次數" value="2,847" delta={18} sublabel="跨 5 大引擎統計" />
+              <MetricCard label="平均引用率"         value="68"    unit="%" delta={5}  sublabel="AI 回應中含品牌連結" />
+              <MetricCard label="正向情緒比例"       value="84"    unit="%" delta={3}  sublabel="NLP 情緒分析" />
+              <MetricCard label="查詢關鍵字覆蓋"     value="312"   unit=" 組" delta={-2} sublabel="觸發品牌提及的查詢" />
+              <MetricCard label="聲量份額 SoV"       value="34"    unit="%" delta={7}  sublabel="vs 主要競品" />
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {/* Sentiment distribution */}
-              <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-                <SectionTitle>情緒分佈</SectionTitle>
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie data={[
-                      { name: "正向", value: 62, color: "#1AAE6F" },
-                      { name: "中性", value: 28, color: CI.secondary },
-                      { name: "負向", value: 10, color: CI.highlight },
-                    ]} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
-                      {[{ color: "#1AAE6F" }, { color: CI.secondary }, { color: CI.highlight }].map((c, i) => (
-                        <Cell key={i} fill={c.color} />
+            {/* ── 總覽 ── */}
+            {activeTab === "overview" && <>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, marginBottom: 20 }}>
+                <div style={cardStyle}>
+                  <SectionTitle badge="即時">跨引擎品牌提及趨勢</SectionTitle>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={mentionTrend}>
+                      <defs>
+                        {engines.map((e, i) => (
+                          <linearGradient key={e} id={`g${i}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%"  stopColor={engineColors[i]} stopOpacity={0.15} />
+                            <stop offset="95%" stopColor={engineColors[i]} stopOpacity={0} />
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                      <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      {engines.map((e, i) => (
+                        <Area key={e} type="monotone" dataKey={e} stroke={engineColors[i]} strokeWidth={2} fill={`url(#g${i})`} opacity={activeEngine === "all" || activeEngine === e ? 1 : 0.15} />
                       ))}
-                    </Pie>
-                    <Tooltip formatter={(v) => `${v}%`} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Citation rate bar */}
-              <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-                <SectionTitle>高引用率查詢 Top 5</SectionTitle>
-                {queryData.slice(0, 5).map((q, i) => (
-                  <div key={i} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                      <span style={{ color: CI.text, fontWeight: 500 }}>{q.query}</span>
-                      <span style={{ color: CI.primary, fontWeight: 700 }}>{Math.round(q.cited / q.mentions * 100)}%</span>
-                    </div>
-                    <div style={{ height: 6, background: "#F0F0F5", borderRadius: 3 }}>
-                      <div style={{
-                        height: "100%", borderRadius: 3,
-                        background: `linear-gradient(90deg, ${CI.primary}, ${CI.secondary})`,
-                        width: `${Math.round(q.cited / q.mentions * 100)}%`,
-                      }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Query trend */}
-          <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-            <SectionTitle badge="時序">查詢提及量週趨勢</SectionTitle>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={[
-                { week: "W1", "AI協作": 24, "遠端工作": 18, "數位轉型": 12, "HR科技": 9 },
-                { week: "W2", "AI協作": 28, "遠端工作": 22, "數位轉型": 15, "HR科技": 11 },
-                { week: "W3", "AI協作": 32, "遠端工作": 25, "數位轉型": 18, "HR科技": 14 },
-                { week: "W4", "AI協作": 38, "遠端工作": 30, "數位轉型": 22, "HR科技": 17 },
-                { week: "W5", "AI協作": 42, "遠端工作": 34, "數位轉型": 25, "HR科技": 20 },
-                { week: "W6", "AI協作": 45, "遠端工作": 38, "數位轉型": 28, "HR科技": 22 },
-              ]}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
-                <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                <Tooltip content={<CustomTooltip />} />
-                {["AI協作", "遠端工作", "數位轉型", "HR科技"].map((k, i) => (
-                  <Bar key={k} dataKey={k} fill={[CI.primary, CI.secondary, CI.button, CI.highlight][i]} radius={[3, 3, 0, 0]} stackId="a" />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </>}
-
-        {/* ── 競品對比 ── */}
-        {activeTab === "competitor" && <>
-          {/* Competitor summary cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
-            {[
-              { name: "我方品牌", sov: 34, mention: 2847, citation: 68, sentiment: 84, color: CI.primary, isUs: true },
-              { name: "競品 A", sov: 28, mention: 2340, citation: 58, sentiment: 72, color: CI.secondary },
-              { name: "競品 B", sov: 20, mention: 1670, citation: 44, sentiment: 65, color: CI.highlight },
-              { name: "競品 C", sov: 12, mention: 1002, citation: 38, sentiment: 78, color: "#D0D0D8" },
-            ].map((c, i) => (
-              <div key={i} style={{
-                background: CI.bg, borderRadius: 14,
-                border: `1.5px solid ${c.color}${c.isUs ? "60" : "30"}`,
-                padding: "18px", position: "relative",
-                boxShadow: c.isUs ? `0 4px 20px ${c.color}15` : "none",
-              }}>
-                {c.isUs && (
-                  <div style={{
-                    position: "absolute", top: -1, right: 12,
-                    background: CI.primary, color: "white",
-                    fontSize: 10, fontWeight: 700, padding: "2px 8px",
-                    borderRadius: "0 0 8px 8px",
-                  }}>我方</div>
-                )}
-                <div style={{ fontWeight: 700, fontSize: 14, color: CI.text, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>{c.name}</div>
-                {[
-                  { label: "SoV", val: `${c.sov}%`, color: c.color },
-                  { label: "總提及", val: c.mention.toLocaleString(), color: CI.text },
-                  { label: "引用率", val: `${c.citation}%`, color: c.citation > 60 ? "#1AAE6F" : "#F5A623" },
-                  { label: "情緒", val: `${c.sentiment}%`, color: c.sentiment > 80 ? "#1AAE6F" : "#F5A623" },
-                ].map(m => (
-                  <div key={m.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-                    <span style={{ color: "#888898" }}>{m.label}</span>
-                    <span style={{ fontWeight: 700, color: m.color }}>{m.val}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-            {/* Radar */}
-            <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-              <SectionTitle>六維度綜合對比</SectionTitle>
-              <ResponsiveContainer width="100%" height={260}>
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="#F0F0F5" />
-                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "#888898" }} />
-                  <Radar name="我方品牌" dataKey="brand" stroke={CI.primary} fill={CI.primary} fillOpacity={0.25} strokeWidth={2} />
-                  <Radar name="競品 A" dataKey="competitor" stroke={CI.secondary} fill={CI.secondary} fillOpacity={0.12} strokeWidth={2} strokeDasharray="4 4" />
-                  <Legend iconType="line" wrapperStyle={{ fontSize: 12 }} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* SoV trend */}
-            <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-              <SectionTitle badge="月趨勢">SoV 聲量份額變化</SectionTitle>
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={[
-                  { month: "10月", us: 28, a: 32, b: 22, c: 18 },
-                  { month: "11月", us: 30, a: 30, b: 21, c: 19 },
-                  { month: "12月", us: 31, a: 29, b: 22, c: 18 },
-                  { month: "1月", us: 33, a: 28, b: 21, c: 18 },
-                  { month: "2月", us: 34, a: 28, b: 20, c: 18 },
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} domain={[0, 50]} />
-                  <Tooltip content={<CustomTooltip />} />
-                  {[
-                    { key: "us", label: "我方", color: CI.primary },
-                    { key: "a", label: "競品 A", color: CI.secondary },
-                    { key: "b", label: "競品 B", color: CI.highlight },
-                    { key: "c", label: "競品 C", color: "#D0D0D8" },
-                  ].map(s => (
-                    <Area key={s.key} type="monotone" dataKey={s.key} name={s.label}
-                      stroke={s.color} fill={s.color} fillOpacity={0.1} strokeWidth={2} />
-                  ))}
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Per-query competitor breakdown */}
-          <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-            <SectionTitle badge="查詢維度">各查詢競品提及對比</SectionTitle>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={queryData.map(q => ({
-                name: q.query.length > 8 ? q.query.slice(0, 8) + "…" : q.query,
-                我方: q.mentions,
-                競品A: Math.round(q.mentions * 0.82),
-                競品B: Math.round(q.mentions * 0.65),
-                競品C: Math.round(q.mentions * 0.44),
-              }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#888898" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="我方" fill={CI.primary} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="競品A" fill={CI.secondary} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="競品B" fill={CI.highlight} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="競品C" fill="#D0D0D8" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </>}
-
-        {/* ── 設定 ── */}
-        {activeTab === "settings" && <>
-          {/* Sub-tabs */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-            {[{ id: "queries", label: "📋 查詢字詞管理" }, { id: "competitors", label: "🏢 競品管理" }].map(t => (
-              <button key={t.id} onClick={() => setSettingsTab(t.id)} style={{
-                padding: "9px 20px", borderRadius: 10, border: "none", cursor: "pointer",
-                background: settingsTab === t.id ? CI.primary : CI.bg,
-                color: settingsTab === t.id ? "white" : "#888898",
-                fontWeight: 600, fontSize: 13,
-                fontFamily: "'DM Sans', sans-serif",
-                border: `1.5px solid ${settingsTab === t.id ? CI.primary : "#E8E8F0"}`,
-                transition: "all 0.15s",
-              }}>{t.label}</button>
-            ))}
-          </div>
-
-          {/* ── 查詢字詞設定 ── */}
-          {settingsTab === "queries" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20 }}>
-              {/* Add new query */}
-              <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-                <SectionTitle>新增查詢字詞</SectionTitle>
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 12, color: "#888898", fontWeight: 600, display: "block", marginBottom: 6 }}>查詢字串</label>
-                  <input
-                    value={newQuery}
-                    onChange={e => setNewQuery(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && addQuery()}
-                    placeholder="例：AI 專案管理工具推薦"
-                    style={{
-                      width: "100%", padding: "10px 14px", borderRadius: 10,
-                      border: "1.5px solid #E8E8F0", fontSize: 13,
-                      fontFamily: "'DM Sans', sans-serif", outline: "none",
-                      color: CI.text, background: "#F8F8FC",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ fontSize: 12, color: "#888898", fontWeight: 600, display: "block", marginBottom: 6 }}>分類標籤</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {["產品", "行銷", "競品", "品牌"].map(cat => (
-                      <button key={cat} onClick={() => setNewQueryCat(cat)} style={{
-                        padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
-                        background: newQueryCat === cat ? `${CI.primary}20` : "#F0F0F5",
-                        color: newQueryCat === cat ? CI.primary : "#888898",
-                        fontWeight: newQueryCat === cat ? 700 : 500,
-                        fontSize: 12, fontFamily: "'DM Sans', sans-serif",
-                        border: `1.5px solid ${newQueryCat === cat ? CI.primary : "transparent"}`,
-                      }}>{cat}</button>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
+                    {engines.map((e, i) => (
+                      <div key={e} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
+                        <span style={{ width: 10, height: 3, borderRadius: 2, background: engineColors[i], display: "inline-block" }} />
+                        <span style={{ color: "#888898" }}>{e}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
-                <button onClick={addQuery} style={{
-                  width: "100%", padding: "11px", borderRadius: 10, border: "none",
-                  background: CI.primary, color: "white",
-                  fontWeight: 700, fontSize: 14, cursor: "pointer",
-                  fontFamily: "'DM Sans', sans-serif",
-                }}>+ 新增查詢字詞</button>
-
-                <div style={{ marginTop: 24, padding: "14px", background: "#F4F5FF", borderRadius: 10, fontSize: 12, color: CI.primary, lineHeight: 1.6 }}>
-                  <strong>💡 建議策略</strong><br />
-                  優先監控「產品類」查詢，掌握 AI 推薦時機。競品相關查詢可及早發現市場切換訊號。
-                </div>
-              </div>
-
-              {/* Query list */}
-              <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <SectionTitle badge={`${monitoredQueries.length} 組`}>已設定查詢字詞</SectionTitle>
-                  <span style={{ fontSize: 12, color: "#AAAABC" }}>
-                    啟用中 {monitoredQueries.filter(q => q.active).length} / {monitoredQueries.length}
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {monitoredQueries.map(q => (
-                    <div key={q.id} style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "11px 14px", borderRadius: 10,
-                      background: q.active ? "#F8F8FC" : "#F0F0F0",
-                      border: `1px solid ${q.active ? "#E8E8F0" : "transparent"}`,
-                      opacity: q.active ? 1 : 0.55,
-                    }}>
-                      {/* Toggle */}
-                      <div onClick={() => toggleQuery(q.id)} style={{
-                        width: 34, height: 18, borderRadius: 9, cursor: "pointer",
-                        background: q.active ? CI.primary : "#CCCCDA",
-                        position: "relative", transition: "background 0.2s", flexShrink: 0,
-                      }}>
-                        <div style={{
-                          width: 14, height: 14, borderRadius: "50%", background: "white",
-                          position: "absolute", top: 2,
-                          left: q.active ? 18 : 2, transition: "left 0.2s",
-                        }} />
+                <div style={cardStyle}>
+                  <SectionTitle>品牌聲量份額 SoV</SectionTitle>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie data={sovData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
+                        {sovData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip formatter={(v) => `${v}%`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {sovData.map((d, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, display: "inline-block" }} />
+                          <span style={{ color: "#666676" }}>{d.name}</span>
+                        </div>
+                        <span style={{ fontWeight: 700, color: CI.text }}>{d.value}%</span>
                       </div>
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: CI.text }}>{q.text}</span>
-                      <span style={{
-                        fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600,
-                        background: {
-                          "產品": `${CI.primary}15`, "行銷": `${CI.button}40`,
-                          "競品": `${CI.highlight}25`, "品牌": `${CI.secondary}30`,
-                        }[q.category] || "#F0F0F5",
-                        color: {
-                          "產品": CI.primary, "行銷": "#1AAE6F",
-                          "競品": "#D04040", "品牌": CI.secondary,
-                        }[q.category] || "#888898",
-                      }}>{q.category}</span>
-                      <button onClick={() => removeQuery(q.id)} style={{
-                        width: 24, height: 24, borderRadius: 6, border: "none",
-                        background: "#F0F0F5", color: "#AAAABC", cursor: "pointer",
-                        fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center",
-                        fontFamily: "'DM Sans', sans-serif",
-                      }}>×</button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* ── 競品設定 ── */}
-          {settingsTab === "competitors" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20 }}>
-              {/* Add new competitor */}
-              <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-                <SectionTitle>新增競品</SectionTitle>
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 12, color: "#888898", fontWeight: 600, display: "block", marginBottom: 6 }}>競品名稱</label>
-                  <input
-                    value={newCompName}
-                    onChange={e => setNewCompName(e.target.value)}
-                    placeholder="例：Notion、Asana"
-                    style={{
-                      width: "100%", padding: "10px 14px", borderRadius: 10,
-                      border: "1.5px solid #E8E8F0", fontSize: 13,
-                      fontFamily: "'DM Sans', sans-serif", outline: "none",
-                      color: CI.text, background: "#F8F8FC",
-                      boxSizing: "border-box",
-                    }}
-                  />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 20, marginBottom: 20 }}>
+                <div style={cardStyle}>
+                  <SectionTitle>品牌 vs 競品綜合表現</SectionTitle>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <RadarChart data={radarData}>
+                      <PolarGrid stroke="#F0F0F5" />
+                      <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "#888898" }} />
+                      <Radar name="我方品牌" dataKey="brand"      stroke={CI.primary}   fill={CI.primary}   fillOpacity={0.25} strokeWidth={2} />
+                      <Radar name="競品平均" dataKey="competitor" stroke={CI.highlight} fill={CI.highlight} fillOpacity={0.15} strokeWidth={2} strokeDasharray="4 4" />
+                      <Legend iconType="line" wrapperStyle={{ fontSize: 12 }} />
+                    </RadarChart>
+                  </ResponsiveContainer>
                 </div>
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ fontSize: 12, color: "#888898", fontWeight: 600, display: "block", marginBottom: 6 }}>官方網域（用於引用偵測）</label>
-                  <input
-                    value={newCompDomain}
-                    onChange={e => setNewCompDomain(e.target.value)}
-                    placeholder="例：notion.so"
-                    style={{
-                      width: "100%", padding: "10px 14px", borderRadius: 10,
-                      border: "1.5px solid #E8E8F0", fontSize: 13,
-                      fontFamily: "'DM Sans', sans-serif", outline: "none",
-                      color: CI.text, background: "#F8F8FC",
-                      boxSizing: "border-box",
-                    }}
-                  />
+                <div style={cardStyle}>
+                  <SectionTitle badge="Top 6">高曝光查詢關鍵字</SectionTitle>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {queryData.map((q, i) => (
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: i === 0 ? `${CI.primary}08` : "transparent", border: i === 0 ? `1px solid ${CI.primary}20` : "1px solid transparent" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: CI.text }}>{q.query}</div>
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: 11, color: "#AAAABC", marginBottom: 2 }}>提及</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: CI.primary }}>{q.mentions}</div>
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: 11, color: "#AAAABC", marginBottom: 2 }}>情緒</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: q.sentiment > 80 ? "#1AAE6F" : q.sentiment > 70 ? "#F5A623" : CI.highlight }}>{q.sentiment}%</div>
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: 11, color: "#AAAABC", marginBottom: 2 }}>引用</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: CI.secondary }}>{q.cited}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <button onClick={addCompetitor} style={{
-                  width: "100%", padding: "11px", borderRadius: 10, border: "none",
-                  background: CI.primary, color: "white",
-                  fontWeight: 700, fontSize: 14, cursor: "pointer",
-                  fontFamily: "'DM Sans', sans-serif",
-                }}>+ 新增競品</button>
+              </div>
 
-                <div style={{ marginTop: 24 }}>
-                  <div style={{ fontSize: 12, color: "#888898", fontWeight: 600, marginBottom: 10 }}>目前監控統計</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
+                <div style={cardStyle}>
+                  <SectionTitle>各 AI 引擎提及 &amp; 引用表現</SectionTitle>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={engines.map((e, i) => ({ name: e, 提及數: [70,56,64,50,31][i], 引用數: [52,40,58,38,22][i] }))} barGap={4}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#888898" }} />
+                      <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="提及數" fill={CI.primary}    radius={[4,4,0,0]} />
+                      <Bar dataKey="引用數" fill={CI.secondary}  radius={[4,4,0,0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={cardStyle}>
+                  <SectionTitle badge={`${alerts.length} 則`}>智能預警</SectionTitle>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {alerts.map((a, i) => {
+                      const s = alertStyle[a.type];
+                      return (
+                        <div key={i} style={{ background: s.bg, borderLeft: `3px solid ${s.border}`, borderRadius: "0 10px 10px 0", padding: "10px 14px" }}>
+                          <div style={{ fontSize: 13, color: CI.text, lineHeight: 1.4 }}>{s.icon} {a.msg}</div>
+                          <div style={{ fontSize: 11, color: "#AAAABC", marginTop: 4 }}>{a.time}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </>}
+
+            {/* ── 引擎分析 ── */}
+            {activeTab === "engines" && <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 20 }}>
+                {engines.map((e, i) => {
+                  const mentions = [70,56,64,50,31][i];
+                  const citations = [52,40,58,38,22][i];
+                  const sentiment = [88,80,86,91,74][i];
+                  const citationRate = Math.round(citations / mentions * 100);
+                  return (
+                    <div key={e} style={{ background: CI.bg, borderRadius: 14, border: `1.5px solid ${engineColors[i]}30`, padding: "18px 16px", borderTop: `3px solid ${engineColors[i]}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: "50%", background: engineColors[i], display: "inline-block" }} />
+                        <span style={{ fontWeight: 700, fontSize: 14, color: CI.text, fontFamily: "'Syne', sans-serif" }}>{e}</span>
+                      </div>
+                      {[
+                        { label: "提及次數", val: mentions,           color: engineColors[i], pct: Math.min(mentions * 1.2, 100) },
+                        { label: "引用次數", val: citations,          color: CI.secondary,    pct: Math.min(citations * 1.4, 100) },
+                        { label: "引用率",   val: `${citationRate}%`, color: citationRate > 75 ? "#1AAE6F" : CI.highlight, pct: citationRate },
+                        { label: "情緒分數", val: `${sentiment}%`,    color: sentiment > 85 ? "#1AAE6F" : "#F5A623", pct: sentiment },
+                      ].map(item => (
+                        <div key={item.label} style={{ marginBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#AAAABC", marginBottom: 3 }}>
+                            <span>{item.label}</span>
+                            <span style={{ fontWeight: 700, color: item.color }}>{item.val}</span>
+                          </div>
+                          <div style={{ height: 4, background: "#F0F0F5", borderRadius: 2, overflow: "hidden" }}>
+                            <div style={{ height: "100%", borderRadius: 2, background: item.color, width: `${item.pct}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20, marginBottom: 20 }}>
+                <div style={cardStyle}>
+                  <SectionTitle badge="週趨勢">各引擎提及趨勢對比</SectionTitle>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={mentionTrend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                      <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      {engines.map((e, i) => <Line key={e} type="monotone" dataKey={e} stroke={engineColors[i]} strokeWidth={2} dot={false} />)}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={cardStyle}>
+                  <SectionTitle>引擎功能支援矩陣</SectionTitle>
                   {[
-                    { label: "監控中競品數", val: `${competitors.filter(c => c.active).length} 家` },
-                    { label: "已設定查詢字詞", val: `${monitoredQueries.filter(q => q.active).length} 組` },
-                    { label: "每日監控次數", val: "4 次" },
-                    { label: "下次更新時間", val: "06:00" },
-                  ].map((item, i) => (
-                    <div key={i} style={{
-                      display: "flex", justifyContent: "space-between",
-                      padding: "8px 0", borderBottom: i < 3 ? "1px solid #F0F0F5" : "none",
-                      fontSize: 13,
-                    }}>
-                      <span style={{ color: "#888898" }}>{item.label}</span>
-                      <span style={{ fontWeight: 700, color: CI.text }}>{item.val}</span>
+                    { feature: "品牌引用連結",    support: [true,  true,  true,  false, true]  },
+                    { feature: "來源標注",         support: [true,  false, true,  true,  false] },
+                    { feature: "即時網路索引",     support: [true,  true,  true,  false, true]  },
+                    { feature: "結構化資料解析",   support: [true,  true,  false, true,  false] },
+                    { feature: "多輪對話記憶",     support: [true,  true,  false, true,  true]  },
+                    { feature: "圖片內容理解",     support: [true,  true,  false, true,  true]  },
+                  ].map((row, ri) => (
+                    <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr repeat(5, 32px)", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, color: CI.text }}>{row.feature}</span>
+                      {row.support.map((s, si) => (
+                        <div key={si} title={engines[si]} style={{ width: 28, height: 28, borderRadius: 8, background: s ? `${engineColors[si]}25` : "#F0F0F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
+                          {s ? "✓" : "—"}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(5, 32px)", gap: 6, marginTop: 6 }}>
+                    <span />
+                    {engines.map((e, i) => <div key={i} style={{ fontSize: 10, color: "#AAAABC", textAlign: "center" }}>{e.slice(0,3)}</div>)}
+                  </div>
+                </div>
+              </div>
+
+              <div style={cardStyle}>
+                <SectionTitle badge="最新快照">AI 引擎回應樣本監控</SectionTitle>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  {[
+                    { engine: "ChatGPT",    color: "#10a37f", query: "遠端工作工具推薦",    snippet: "Teleworker 是目前市場上整合度最高的遠端協作平台之一，支援非同步溝通與 AI 任務派發，適合中大型企業採用。", cited: true,  sentiment: "正向" },
+                    { engine: "Perplexity", color: "#20B2AA", query: "AI 協作工具比較",     snippet: "根據最新使用者評比，Teleworker 在 AI 整合與工作流自動化方面獲得高度評價，引用來源：TechReview 2024。",    cited: true,  sentiment: "正向" },
+                    { engine: "Gemini",     color: "#4285F4", query: "HR 科技解決方案",     snippet: "目前主流 HR 科技平台包含 Workday、BambooHR 等，部分整合 AI 功能的新興工具也在市場上嶄露頭角。",          cited: false, sentiment: "中性" },
+                    { engine: "Claude",     color: "#C084FC", query: "企業數位轉型建議",    snippet: "Teleworker 提供完整的工作流自動化解決方案，特別在跨部門協作與資料整合方面表現突出。",                      cited: true,  sentiment: "正向" },
+                  ].map((s, i) => (
+                    <div key={i} style={{ borderRadius: 12, border: `1px solid ${s.color}30`, padding: "16px", background: `${s.color}05` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, display: "inline-block" }} />
+                          <span style={{ fontWeight: 700, fontSize: 13, color: CI.text }}>{s.engine}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: s.cited ? `${CI.button}40` : "#F0F0F5", color: s.cited ? "#1AAE6F" : "#AAAABC" }}>{s.cited ? "✓ 引用" : "未引用"}</span>
+                          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: s.sentiment === "正向" ? `${CI.primary}15` : "#F0F0F5", color: s.sentiment === "正向" ? CI.primary : "#888898" }}>{s.sentiment}</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#888898", marginBottom: 6 }}>查詢：{s.query}</div>
+                      <div style={{ fontSize: 13, color: CI.text, lineHeight: 1.6, background: "white", borderRadius: 8, padding: "10px 12px", borderLeft: `3px solid ${s.color}` }}>"{s.snippet}"</div>
                     </div>
                   ))}
                 </div>
               </div>
+            </>}
 
-              {/* Competitor list */}
-              <div style={{ background: CI.bg, borderRadius: 16, border: "1.5px solid #E8E8F0", padding: "24px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <SectionTitle badge={`${competitors.length} 家`}>已設定競品</SectionTitle>
-                  <span style={{ fontSize: 12, color: "#AAAABC" }}>
-                    啟用中 {competitors.filter(c => c.active).length} / {competitors.length}
-                  </span>
+            {/* ── 查詢監控 ── */}
+            {activeTab === "queries" && <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                <div style={cardStyle}>
+                  <SectionTitle badge="全部">查詢關鍵字監控列表</SectionTitle>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 60px 60px", gap: 8, marginBottom: 8, padding: "0 10px" }}>
+                    {["查詢字串","提及","引用","情緒","SoV"].map(h => <div key={h} style={{ fontSize: 11, fontWeight: 600, color: "#AAAABC" }}>{h}</div>)}
+                  </div>
+                  {[...queryData,
+                    { query: "工作流程自動化",   mentions: 38, sentiment: 70, cited: 30 },
+                    { query: "B2B SaaS 工具",    mentions: 33, sentiment: 68, cited: 25 },
+                    { query: "混合辦公解決方案", mentions: 29, sentiment: 82, cited: 22 },
+                    { query: "員工體驗平台",     mentions: 24, sentiment: 75, cited: 18 },
+                  ].map((q, i) => (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 60px 60px", alignItems: "center", gap: 8, padding: "10px", borderRadius: 10, marginBottom: 4, background: i % 2 === 0 ? "#F8F8FC" : "transparent" }}>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: CI.text }}>{q.query}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: CI.primary, textAlign: "center" }}>{q.mentions}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: CI.secondary, textAlign: "center" }}>{q.cited}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, textAlign: "center", color: q.sentiment > 80 ? "#1AAE6F" : q.sentiment > 70 ? "#F5A623" : CI.highlight }}>{q.sentiment}%</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, background: `${CI.primary}15`, color: CI.primary, padding: "2px 6px", borderRadius: 8, textAlign: "center" }}>{Math.round(q.mentions / 2.4)}%</span>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {competitors.map(c => (
-                    <div key={c.id} style={{
-                      padding: "14px 16px", borderRadius: 12,
-                      background: c.active ? "#F8F8FC" : "#F0F0F0",
-                      border: `1.5px solid ${c.active ? c.color + "40" : "transparent"}`,
-                      opacity: c.active ? 1 : 0.55,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        {/* Toggle */}
-                        <div onClick={() => toggleCompetitor(c.id)} style={{
-                          width: 34, height: 18, borderRadius: 9, cursor: "pointer",
-                          background: c.active ? CI.primary : "#CCCCDA",
-                          position: "relative", transition: "background 0.2s", flexShrink: 0,
-                        }}>
-                          <div style={{
-                            width: 14, height: 14, borderRadius: "50%", background: "white",
-                            position: "absolute", top: 2,
-                            left: c.active ? 18 : 2, transition: "left 0.2s",
-                          }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  <div style={cardStyle}>
+                    <SectionTitle>情緒分佈</SectionTitle>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie data={[{name:"正向",value:62,color:"#1AAE6F"},{name:"中性",value:28,color:CI.secondary},{name:"負向",value:10,color:CI.highlight}]} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
+                          {[{color:"#1AAE6F"},{color:CI.secondary},{color:CI.highlight}].map((c, i) => <Cell key={i} fill={c.color} />)}
+                        </Pie>
+                        <Tooltip formatter={(v) => `${v}%`} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={cardStyle}>
+                    <SectionTitle>高引用率查詢 Top 5</SectionTitle>
+                    {queryData.slice(0,5).map((q, i) => (
+                      <div key={i} style={{ marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ color: CI.text, fontWeight: 500 }}>{q.query}</span>
+                          <span style={{ color: CI.primary, fontWeight: 700 }}>{Math.round(q.cited / q.mentions * 100)}%</span>
                         </div>
-                        <span style={{ width: 12, height: 12, borderRadius: 3, background: c.color, flexShrink: 0 }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: CI.text }}>{c.name}</div>
-                          {c.domain && <div style={{ fontSize: 11, color: "#AAAABC", marginTop: 2 }}>{c.domain}</div>}
+                        <div style={{ height: 6, background: "#F0F0F5", borderRadius: 3 }}>
+                          <div style={{ height: "100%", borderRadius: 3, background: `linear-gradient(90deg, ${CI.primary}, ${CI.secondary})`, width: `${Math.round(q.cited / q.mentions * 100)}%` }} />
                         </div>
-                        <button onClick={() => removeCompetitor(c.id)} style={{
-                          width: 28, height: 28, borderRadius: 8, border: "none",
-                          background: "#F0F0F5", color: "#AAAABC", cursor: "pointer",
-                          fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
-                        }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div style={cardStyle}>
+                <SectionTitle badge="時序">查詢提及量週趨勢</SectionTitle>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={[
+                    {week:"W1","AI協作":24,"遠端工作":18,"數位轉型":12,"HR科技":9},
+                    {week:"W2","AI協作":28,"遠端工作":22,"數位轉型":15,"HR科技":11},
+                    {week:"W3","AI協作":32,"遠端工作":25,"數位轉型":18,"HR科技":14},
+                    {week:"W4","AI協作":38,"遠端工作":30,"數位轉型":22,"HR科技":17},
+                    {week:"W5","AI協作":42,"遠端工作":34,"數位轉型":25,"HR科技":20},
+                    {week:"W6","AI協作":45,"遠端工作":38,"數位轉型":28,"HR科技":22},
+                  ]}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
+                    <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    {["AI協作","遠端工作","數位轉型","HR科技"].map((k, i) => (
+                      <Bar key={k} dataKey={k} fill={[CI.primary, CI.secondary, CI.button, CI.highlight][i]} radius={[3,3,0,0]} stackId="a" />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </>}
+
+            {/* ── 競品對比 ── */}
+            {activeTab === "competitor" && <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
+                {[
+                  {name:"我方品牌",sov:34,mention:2847,citation:68,sentiment:84,color:CI.primary,isUs:true},
+                  {name:"競品 A",  sov:28,mention:2340,citation:58,sentiment:72,color:CI.secondary},
+                  {name:"競品 B",  sov:20,mention:1670,citation:44,sentiment:65,color:CI.highlight},
+                  {name:"競品 C",  sov:12,mention:1002,citation:38,sentiment:78,color:"#D0D0D8"},
+                ].map((c, i) => (
+                  <div key={i} style={{ background: CI.bg, borderRadius: 14, border: `1.5px solid ${c.color}${c.isUs?"60":"30"}`, padding: "18px", position: "relative", boxShadow: c.isUs ? `0 4px 20px ${c.color}15` : "none" }}>
+                    {c.isUs && <div style={{ position: "absolute", top: -1, right: 12, background: CI.primary, color: "white", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: "0 0 8px 8px" }}>我方</div>}
+                    <div style={{ fontWeight: 700, fontSize: 14, color: CI.text, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>{c.name}</div>
+                    {[
+                      {label:"SoV",     val:`${c.sov}%`,                color:c.color},
+                      {label:"總提及",  val:c.mention.toLocaleString(), color:CI.text},
+                      {label:"引用率",  val:`${c.citation}%`,           color:c.citation>60?"#1AAE6F":"#F5A623"},
+                      {label:"情緒",    val:`${c.sentiment}%`,          color:c.sentiment>80?"#1AAE6F":"#F5A623"},
+                    ].map(m => (
+                      <div key={m.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
+                        <span style={{ color: "#888898" }}>{m.label}</span>
+                        <span style={{ fontWeight: 700, color: m.color }}>{m.val}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                <div style={cardStyle}>
+                  <SectionTitle>六維度綜合對比</SectionTitle>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <RadarChart data={radarData}>
+                      <PolarGrid stroke="#F0F0F5" />
+                      <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "#888898" }} />
+                      <Radar name="我方品牌" dataKey="brand"      stroke={CI.primary}   fill={CI.primary}   fillOpacity={0.25} strokeWidth={2} />
+                      <Radar name="競品 A"   dataKey="competitor" stroke={CI.secondary} fill={CI.secondary} fillOpacity={0.12} strokeWidth={2} strokeDasharray="4 4" />
+                      <Legend iconType="line" wrapperStyle={{ fontSize: 12 }} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={cardStyle}>
+                  <SectionTitle badge="月趨勢">SoV 聲量份額變化</SectionTitle>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={[
+                      {month:"10月",us:28,a:32,b:22,c:18},
+                      {month:"11月",us:30,a:30,b:21,c:19},
+                      {month:"12月",us:31,a:29,b:22,c:18},
+                      {month:"1月", us:33,a:28,b:21,c:18},
+                      {month:"2月", us:34,a:28,b:20,c:18},
+                    ]}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                      <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} domain={[0,50]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      {[{key:"us",label:"我方",color:CI.primary},{key:"a",label:"競品 A",color:CI.secondary},{key:"b",label:"競品 B",color:CI.highlight},{key:"c",label:"競品 C",color:"#D0D0D8"}].map(s => (
+                        <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} fill={s.color} fillOpacity={0.1} strokeWidth={2} />
+                      ))}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div style={cardStyle}>
+                <SectionTitle badge="查詢維度">各查詢競品提及對比</SectionTitle>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={queryData.map(q => ({ name: q.query.length > 8 ? q.query.slice(0,8)+"…" : q.query, 我方:q.mentions, 競品A:Math.round(q.mentions*0.82), 競品B:Math.round(q.mentions*0.65), 競品C:Math.round(q.mentions*0.44) }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#888898" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#AAAABC" }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="我方"  fill={CI.primary}   radius={[3,3,0,0]} />
+                    <Bar dataKey="競品A" fill={CI.secondary} radius={[3,3,0,0]} />
+                    <Bar dataKey="競品B" fill={CI.highlight} radius={[3,3,0,0]} />
+                    <Bar dataKey="競品C" fill="#D0D0D8"      radius={[3,3,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </>}
+
+            {/* ── 設定 ── */}
+            {activeTab === "settings" && <>
+              <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+                {[{id:"queries",label:"📋 查詢字詞管理"},{id:"competitors",label:"🏢 競品管理"}].map(t => (
+                  <button key={t.id} onClick={() => setSettingsTab(t.id)} style={{ padding: "9px 20px", borderRadius: 10, cursor: "pointer", background: settingsTab === t.id ? CI.primary : CI.bg, color: settingsTab === t.id ? "white" : "#888898", fontWeight: 600, fontSize: 13, fontFamily: "'DM Sans', sans-serif", border: `1.5px solid ${settingsTab === t.id ? CI.primary : "#E8E8F0"}`, transition: "all 0.15s" }}>{t.label}</button>
+                ))}
+              </div>
+
+              {settingsTab === "queries" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20 }}>
+                  <div style={cardStyle}>
+                    <SectionTitle>新增查詢字詞</SectionTitle>
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ fontSize: 12, color: "#888898", fontWeight: 600, display: "block", marginBottom: 6 }}>查詢字串</label>
+                      <input value={newQuery} onChange={e => setNewQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && addQuery()} placeholder="例：AI 專案管理工具推薦" style={inputStyle} />
+                    </div>
+                    <div style={{ marginBottom: 20 }}>
+                      <label style={{ fontSize: 12, color: "#888898", fontWeight: 600, display: "block", marginBottom: 6 }}>分類標籤</label>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {["產品","行銷","競品","品牌"].map(cat => (
+                          <button key={cat} onClick={() => setNewQueryCat(cat)} style={{ padding: "6px 14px", borderRadius: 8, border: `1.5px solid ${newQueryCat === cat ? CI.primary : "transparent"}`, cursor: "pointer", background: newQueryCat === cat ? `${CI.primary}20` : "#F0F0F5", color: newQueryCat === cat ? CI.primary : "#888898", fontWeight: newQueryCat === cat ? 700 : 500, fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}>{cat}</button>
+                        ))}
                       </div>
                     </div>
-                  ))}
-
-                  {competitors.length === 0 && (
-                    <div style={{
-                      textAlign: "center", padding: "40px 20px",
-                      color: "#CCCCDA", fontSize: 14,
-                    }}>
-                      尚無競品，請從左側新增
+                    <button onClick={addQuery} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: CI.primary, color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>+ 新增查詢字詞</button>
+                    <div style={{ marginTop: 24, padding: "14px", background: "#F4F5FF", borderRadius: 10, fontSize: 12, color: CI.primary, lineHeight: 1.6 }}>
+                      <strong>💡 建議策略</strong><br />優先監控「產品類」查詢，掌握 AI 推薦時機。競品相關查詢可及早發現市場切換訊號。
                     </div>
-                  )}
+                  </div>
+                  <div style={cardStyle}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                      <SectionTitle badge={`${monitoredQueries.length} 組`}>已設定查詢字詞</SectionTitle>
+                      <span style={{ fontSize: 12, color: "#AAAABC" }}>啟用中 {monitoredQueries.filter(q => q.active).length} / {monitoredQueries.length}</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {monitoredQueries.map(q => (
+                        <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 10, background: q.active ? "#F8F8FC" : "#F0F0F0", border: `1px solid ${q.active ? "#E8E8F0" : "transparent"}`, opacity: q.active ? 1 : 0.55 }}>
+                          <Toggle active={q.active} onToggle={() => toggleQuery(q.id)} />
+                          <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: CI.text }}>{q.text}</span>
+                          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600, background: {"產品":`${CI.primary}15`,"行銷":`${CI.button}40`,"競品":`${CI.highlight}25`,"品牌":`${CI.secondary}30`}[q.category]||"#F0F0F5", color: {"產品":CI.primary,"行銷":"#1AAE6F","競品":"#D04040","品牌":CI.secondary}[q.category]||"#888898" }}>{q.category}</span>
+                          <button onClick={() => removeQuery(q.id)} style={{ width: 24, height: 24, borderRadius: 6, border: "none", background: "#F0F0F5", color: "#AAAABC", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+              )}
 
-                <div style={{ marginTop: 16, padding: "12px 14px", background: "#FFF5F5", borderRadius: 10, fontSize: 12, color: "#D04040", lineHeight: 1.6 }}>
-                  ⚠️ 刪除競品後，歷史對比資料將一併移除，請謹慎操作。
+              {settingsTab === "competitors" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20 }}>
+                  <div style={cardStyle}>
+                    <SectionTitle>新增競品</SectionTitle>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ fontSize: 12, color: "#888898", fontWeight: 600, display: "block", marginBottom: 6 }}>競品名稱</label>
+                      <input value={newCompName} onChange={e => setNewCompName(e.target.value)} placeholder="例：Notion、Asana" style={inputStyle} />
+                    </div>
+                    <div style={{ marginBottom: 20 }}>
+                      <label style={{ fontSize: 12, color: "#888898", fontWeight: 600, display: "block", marginBottom: 6 }}>官方網域（用於引用偵測）</label>
+                      <input value={newCompDomain} onChange={e => setNewCompDomain(e.target.value)} placeholder="例：notion.so" style={inputStyle} />
+                    </div>
+                    <button onClick={addCompetitor} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: CI.primary, color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>+ 新增競品</button>
+                    <div style={{ marginTop: 24 }}>
+                      <div style={{ fontSize: 12, color: "#888898", fontWeight: 600, marginBottom: 10 }}>目前監控統計</div>
+                      {[
+                        {label:"監控中競品數",val:`${competitors.filter(c=>c.active).length} 家`},
+                        {label:"已設定查詢字詞",val:`${monitoredQueries.filter(q=>q.active).length} 組`},
+                        {label:"每日監控次數",val:"4 次"},
+                        {label:"下次更新時間",val:"06:00"},
+                      ].map((item, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: i < 3 ? "1px solid #F0F0F5" : "none", fontSize: 13 }}>
+                          <span style={{ color: "#888898" }}>{item.label}</span>
+                          <span style={{ fontWeight: 700, color: CI.text }}>{item.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={cardStyle}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                      <SectionTitle badge={`${competitors.length} 家`}>已設定競品</SectionTitle>
+                      <span style={{ fontSize: 12, color: "#AAAABC" }}>啟用中 {competitors.filter(c=>c.active).length} / {competitors.length}</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {competitors.map(c => (
+                        <div key={c.id} style={{ padding: "14px 16px", borderRadius: 12, background: c.active ? "#F8F8FC" : "#F0F0F0", border: `1.5px solid ${c.active ? c.color+"40" : "transparent"}`, opacity: c.active ? 1 : 0.55 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <Toggle active={c.active} onToggle={() => toggleCompetitor(c.id)} />
+                            <span style={{ width: 12, height: 12, borderRadius: 3, background: c.color, display: "inline-block", flexShrink: 0 }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 700, fontSize: 14, color: CI.text }}>{c.name}</div>
+                              {c.domain && <div style={{ fontSize: 11, color: "#AAAABC", marginTop: 2 }}>{c.domain}</div>}
+                            </div>
+                            <button onClick={() => removeCompetitor(c.id)} style={{ width: 28, height: 28, borderRadius: 8, border: "none", background: "#F0F0F5", color: "#AAAABC", cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                          </div>
+                        </div>
+                      ))}
+                      {competitors.length === 0 && <div style={{ textAlign: "center", padding: "40px 20px", color: "#CCCCDA", fontSize: 14 }}>尚無競品，請從左側新增</div>}
+                    </div>
+                    <div style={{ marginTop: 16, padding: "12px 14px", background: "#FFF5F5", borderRadius: 10, fontSize: 12, color: "#D04040", lineHeight: 1.6 }}>
+                      ⚠️ 刪除競品後，歷史對比資料將一併移除，請謹慎操作。
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+            </>}
+
+            {/* Footer */}
+            <div style={{ marginTop: 28, padding: "16px 0", borderTop: "1px solid #E8E8F0", display: "flex", justifyContent: "space-between", fontSize: 12, color: "#AAAABC" }}>
+              <span>GEO Monitor v1.0 · Teleworker Internal Product</span>
+              <span>資料來源：ChatGPT / Gemini / Perplexity / Claude / Copilot · 最後更新：今日 06:00</span>
             </div>
-          )}
-        </>}
-
-        {/* Footer */}
-        <div style={{
-          marginTop: 28, padding: "16px 0",
-          borderTop: "1px solid #E8E8F0",
-          display: "flex", justifyContent: "space-between",
-          fontSize: 12, color: "#AAAABC",
-        }}>
-          <span>GEO Monitor v1.0 · Teleworker Internal Product</span>
-          <span>資料來源：API 抓取 ChatGPT / Gemini / Perplexity / Claude / Copilot · 最後更新：今日 06:00</span>
+          </div>
         </div>
-      </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        * { box-sizing: border-box; }
-        select { outline: none; }
-        button:hover { opacity: 0.9; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #D0D0DA; border-radius: 3px; }
-      `}</style>
-    </div>
-  );
-}
+      );
+    }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<GEODashboard />);
