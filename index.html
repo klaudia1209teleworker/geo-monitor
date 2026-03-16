@@ -1216,7 +1216,57 @@ const ACTION_RULES = [
   },
 ];
 
-// ── Per-topic mock data ──────────────────────────────────────────
+// ── Per-topic prompt-level data ──────────────────────────────────
+const TOPIC_PROMPTS = {
+  ai: [
+    { q:"什麼是最好的 AI 協作工具？",       vol:420, zeroSOV:false, noDomain:false },
+    { q:"AI 工具推薦給中小企業",             vol:310, zeroSOV:false, noDomain:true  },
+    { q:"企業導入 AI 助理的流程",            vol:280, zeroSOV:true,  noDomain:true  },
+    { q:"AI 提升工作效率的方法",             vol:260, zeroSOV:true,  noDomain:false },
+    { q:"2025 年最實用 AI 工具排行",         vol:240, zeroSOV:false, noDomain:false },
+    { q:"AI 協作與傳統 SaaS 的差異",         vol:190, zeroSOV:false, noDomain:true  },
+    { q:"如何選擇適合公司的 AI 助手",        vol:170, zeroSOV:false, noDomain:false },
+  ],
+  remote: [
+    { q:"遠端工作最佳實踐",                  vol:380, zeroSOV:true,  noDomain:true  },
+    { q:"混合辦公如何管理員工效率",           vol:320, zeroSOV:true,  noDomain:false },
+    { q:"遠端團隊溝通工具推薦",              vol:290, zeroSOV:false, noDomain:true  },
+    { q:"異地辦公的挑戰與解法",              vol:220, zeroSOV:true,  noDomain:true  },
+    { q:"遠端工作公司文化建立",              vol:180, zeroSOV:true,  noDomain:false },
+    { q:"Teleworker 和 Slack 哪個好",        vol:160, zeroSOV:false, noDomain:false },
+  ],
+  hr: [
+    { q:"HR 科技工具 2025 比較",             vol:310, zeroSOV:true,  noDomain:true  },
+    { q:"員工體驗平台選購指南",              vol:270, zeroSOV:true,  noDomain:true  },
+    { q:"人才招募 AI 系統導入",              vol:240, zeroSOV:true,  noDomain:true  },
+    { q:"績效管理數位化工具",               vol:200, zeroSOV:true,  noDomain:false },
+    { q:"HR SaaS 採購評估標準",             vol:180, zeroSOV:true,  noDomain:true  },
+    { q:"員工離職率降低的工具方案",          vol:150, zeroSOV:false, noDomain:true  },
+    { q:"自動化排班系統推薦",               vol:130, zeroSOV:true,  noDomain:false },
+    { q:"HR 數位轉型實施案例",              vol:110, zeroSOV:false, noDomain:true  },
+  ],
+  digital: [
+    { q:"企業數位轉型工具推薦",             vol:450, zeroSOV:false, noDomain:false },
+    { q:"中小企業數位化的第一步",            vol:380, zeroSOV:false, noDomain:false },
+    { q:"數位轉型失敗的常見原因",            vol:310, zeroSOV:true,  noDomain:true  },
+    { q:"SaaS vs 自建系統優缺點",            vol:280, zeroSOV:false, noDomain:true  },
+    { q:"企業內部流程自動化工具",            vol:250, zeroSOV:false, noDomain:true  },
+    { q:"數位轉型 ROI 如何計算",            vol:220, zeroSOV:true,  noDomain:false },
+    { q:"雲端協作工具導入教學",             vol:190, zeroSOV:false, noDomain:true  },
+    { q:"數位轉型顧問服務比較",             vol:150, zeroSOV:false, noDomain:false },
+    { q:"製造業數位化工具案例",             vol:130, zeroSOV:true,  noDomain:false },
+  ],
+  comp: [
+    { q:"Teleworker vs Slack 比較",          vol:520, zeroSOV:false, noDomain:false },
+    { q:"Notion 替代方案推薦",              vol:390, zeroSOV:false, noDomain:true  },
+    { q:"Asana 和 Jira 哪個適合小團隊",      vol:340, zeroSOV:false, noDomain:true  },
+    { q:"遠端工作平台費用比較 2025",         vol:290, zeroSOV:true,  noDomain:false },
+    { q:"Teams 和 Teleworker 差異",          vol:260, zeroSOV:false, noDomain:true  },
+    { q:"ClickUp 優缺點分析",               vol:210, zeroSOV:false, noDomain:false },
+  ],
+};
+
+
 const TOPIC_DATA = [
   {
     id:"ai",    label:"AI 工具",   color:ST_COLOR["AI 工具"],
@@ -1322,7 +1372,7 @@ const ActionPlanTab = () => {
   const { quadrant, rules } = deriveActions(topic);
   const qMeta = QUADRANT_META[quadrant];
 
-  const metricMax = { prompts:20, totalCitation:100, brandMention:80, domainCitation:40, sov:100, das:100, zeroSOV:topic.prompts, zeroDomain:topic.prompts };
+  const metricMax = {}; // kept for compatibility
 
   return (
     <div style={{ animation:"fadeIn 0.25s ease" }}>
@@ -1353,78 +1403,106 @@ const ActionPlanTab = () => {
 
       {/* ─── Metrics Grid ─────────────────────────── */}
       <div style={{ marginBottom:18 }}>
-        {/* Row 1: 4 main metrics */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:10 }}>
+        {/* Row 1: 4 main indicator cards — matching reference layout */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:12 }}>
           {[
-            { name:"Prompts 數",     nameEn:"",              catLabel:"市場熱度",  val:topic.prompts,       unit:"",    maxVal:metricMax.prompts,       color:topic.color,   desc:"AI 引擎被問到這個話題的次數越多，代表市場關注度越高" },
-            { name:"Total Citation", nameEn:"",              catLabel:"市場熱度",  val:topic.totalCitation, unit:"",    maxVal:metricMax.totalCitation, color:topic.color,   desc:"AI 回答時引用的來源總數，越多代表競爭者越多、議題越成熟" },
-            { name:"Brand Mention",  nameEn:"",              catLabel:"品牌表現",  val:topic.brandMention,  unit:"",    maxVal:metricMax.brandMention,  color:CI.primary,    desc:"AI 引用來源中提到品牌名稱的篇數", formula:`SOV = ${topic.sov}%` },
-            { name:"Domain Citation",nameEn:"",              catLabel:"品牌表現",  val:topic.domainCitation,unit:"",    maxVal:metricMax.domainCitation,color:CI.secondary,  desc:"AI 回答引用官方網站內容的次數",     formula:`DAS = ${topic.das}%` },
+            {
+              name:"Prompts 數",
+              meaning:"市場討論熱度",
+              desc:"AI 引擎被問到這個話題的次數越多，代表市場關注度越高",
+              val:topic.prompts, color:topic.color, formula:null,
+            },
+            {
+              name:"Total Citation",
+              meaning:"引用來源豐富度",
+              desc:"AI 回答時引用的來源總數，越多代表競爭者越多、議題越成熟",
+              val:topic.totalCitation, color:topic.color, formula:null,
+            },
+            {
+              name:"Brand Mention",
+              meaning:"品牌被提及次數",
+              desc:"AI 引用來源中，有多少篇提到了品牌名稱",
+              val:topic.brandMention, color:CI.primary, formula:"SOV = mention / citation",
+            },
+            {
+              name:"Domain Citation",
+              meaning:"官網被引用次數",
+              desc:"AI 回答時引用官方網站內容的次數",
+              val:topic.domainCitation, color:CI.secondary, formula:"DAS = domain / citation",
+            },
           ].map((m, i) => (
-            <div key={i} className="card" style={{ padding:"16px 18px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
-                <div>
-                  <div style={{ fontSize:12.5, fontWeight:700, color:CI.text }}>{m.name}</div>
-                  <div style={{ fontSize:10, color:CI.mutedLight, marginTop:1, fontWeight:600, letterSpacing:.05, textTransform:"uppercase" }}>{m.catLabel}</div>
+            <div key={i} className="card" style={{ padding:"18px 20px", position:"relative" }}>
+              {/* Metric name */}
+              <div style={{ fontSize:12.5, fontWeight:600, color:CI.text, marginBottom:8 }}>{m.name}</div>
+              {/* Big Chinese meaning */}
+              <div style={{ fontSize:18, fontWeight:700, color:CI.text, fontFamily:"'Syne',sans-serif", lineHeight:1.25, marginBottom:10 }}>
+                {m.meaning}
+              </div>
+              {/* Numeric value + mini bar */}
+              <div style={{ display:"flex", alignItems:"baseline", gap:6, marginBottom:6 }}>
+                <span style={{ fontSize:28, fontWeight:800, color:m.color, fontFamily:"'Syne',sans-serif", lineHeight:1 }}>{m.val}</span>
+                {i===2 && <span style={{ fontSize:11.5, fontWeight:700, color:CI.primary, background:"#EEF0FF", borderRadius:6, padding:"1px 7px" }}>SOV {topic.sov}%</span>}
+                {i===3 && <span style={{ fontSize:11.5, fontWeight:700, color:"#5060A0", background:"#EBEBF8", borderRadius:6, padding:"1px 7px" }}>DAS {topic.das}%</span>}
+              </div>
+              <div style={{ height:3, background:"#EEEEF5", borderRadius:2, overflow:"hidden", marginBottom:10 }}>
+                <div style={{ height:"100%", borderRadius:2, background:m.color, opacity:.7,
+                  width: i===0 ? Math.min(Math.round(m.val/20*100),100)+"%" :
+                         i===1 ? Math.min(Math.round(m.val/100*100),100)+"%" :
+                         i===2 ? Math.min(Math.round(m.val/80*100),100)+"%" :
+                                 Math.min(Math.round(m.val/40*100),100)+"%",
+                  transition:"width .6s"
+                }}/>
+              </div>
+              {/* Description */}
+              <div style={{ fontSize:11.5, color:CI.muted, lineHeight:1.6, marginBottom:m.formula?10:0 }}>{m.desc}</div>
+              {/* Formula badge */}
+              {m.formula && (
+                <div style={{ display:"inline-block", background:"#F2F2F8", borderRadius:7, padding:"4px 10px", fontSize:11, color:CI.muted, fontFamily:"monospace", lineHeight:1.5 }}>
+                  {m.formula}
                 </div>
-                {m.formula && (
-                  <span style={{ fontSize:10, fontFamily:"monospace", color:CI.primary, background:`${CI.primary}10`, padding:"2px 7px", borderRadius:6, fontWeight:700 }}>{m.formula}</span>
-                )}
-              </div>
-              <div style={{ fontSize:26, fontWeight:800, color:m.color, fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>
-                {m.val}<span style={{ fontSize:13, color:CI.muted, fontWeight:400 }}>{m.unit}</span>
-              </div>
-              <MiniBar val={m.val} max={m.maxVal} color={m.color}/>
-              <div style={{ fontSize:11, color:CI.muted, marginTop:7, lineHeight:1.5 }}>{m.desc}</div>
+              )}
+              {/* Topic-color accent bar at top */}
+              <div style={{ position:"absolute", top:0, left:20, right:20, height:2, borderRadius:"0 0 3px 3px", background:m.color, opacity:.35 }}/>
             </div>
           ))}
         </div>
 
-        {/* Row 2: SOV + DAS ratio cards */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
-          {[
-            { name:"SOV", label:"Share of Voice", val:topic.sov, unit:"%", color:CI.primary,   formula:"Brand Mention / Total Citation", good:topic.sov>=45, thresh:45 },
-            { name:"DAS", label:"Domain Auth. Share", val:topic.das, unit:"%", color:CI.secondary, formula:"Domain Citation / Total Citation", good:topic.das>=25, thresh:25 },
-          ].map((m,i) => (
-            <div key={i} className="card" style={{ padding:"16px 18px", border:"1.5px solid " + (m.good ? m.color+"50" : CI.border), background:m.good ? m.color+"05" : "#FFFFFB" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:700, color:CI.text }}>{m.name}</div>
-                  <div style={{ fontSize:10.5, color:CI.muted }}>{m.label}</div>
-                </div>
-                <span style={{ fontSize:10, color:m.good?m.color:CI.red, background:m.good ? m.color+"12" : "#FFF0F0", border:"1px solid " + (m.good ? m.color+"30" : "#FFCCCC"), padding:"2px 8px", borderRadius:20, fontWeight:700 }}>
-                  {m.good?"✓ 良好":"⚠ 偏低"}
-                </span>
-              </div>
-              <div style={{ fontSize:28, fontWeight:800, color:m.color, fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>
-                {m.val}<span style={{ fontSize:13, color:CI.muted }}>%</span>
-              </div>
-              <MiniBar val={m.val} max={100} color={m.good?m.color:CI.red}/>
-              <div style={{ fontSize:10.5, color:CI.muted, marginTop:7, fontFamily:"monospace" }}>{m.formula}</div>
-              <div style={{ fontSize:10.5, color:CI.mutedLight, marginTop:4 }}>基準：{m.thresh}% 以上視為良好</div>
+        {/* Row 2: Zero SOV + Zero Domain Citation — 2 wide cards */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          {/* Zero SOV Prompts */}
+          <div className="card" style={{ padding:"18px 20px", background:"#FFFFFB" }}>
+            <div style={{ fontSize:12.5, fontWeight:600, color:CI.text, marginBottom:4 }}>Zero SOV Prompts</div>
+            <div style={{ fontSize:18, fontWeight:700, color:CI.red, fontFamily:"'Syne',sans-serif", marginBottom:8, lineHeight:1.25 }}>
+              品牌完全缺席的話題數
             </div>
-          ))}
-
-          {/* Zero SOV */}
-          <div className="card" style={{ padding:"16px 18px", border:`1.5px solid ${topic.zeroSOV>topic.prompts*.3?"#F88888":CI.border}`, background:topic.zeroSOV>topic.prompts*.3?"#FFF5F5":"#FFFFFB" }}>
-            <div style={{ fontSize:12.5, fontWeight:700, color:CI.red, marginBottom:2 }}>Zero SOV Prompts</div>
-            <div style={{ fontSize:11, color:CI.muted, marginBottom:6 }}>品牌完全缺席的話題數</div>
-            <div style={{ fontSize:26, fontWeight:800, color:CI.red, fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>
-              {topic.zeroSOV}<span style={{ fontSize:13, color:CI.muted }}> / {topic.prompts}</span>
+            <div style={{ fontSize:11.5, color:CI.muted, lineHeight:1.6 }}>
+              在這些問題的 AI 回答裡，完全沒有提到你的品牌 → 流失的曝光機會
             </div>
-            <MiniBar val={topic.zeroSOV} max={topic.prompts} color={CI.red}/>
-            <div style={{ fontSize:11, color:CI.muted, marginTop:7, lineHeight:1.5 }}>在這些 AI 回答裡完全未提及品牌 → 直接流失的曝光機會</div>
+            <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:24, fontWeight:800, color:CI.red, fontFamily:"'Syne',sans-serif" }}>{topic.zeroSOV}</span>
+              <span style={{ fontSize:12, color:CI.muted }}>/ {topic.prompts} prompts</span>
+              <div style={{ flex:1, height:4, background:"#FFEEEE", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", borderRadius:3, background:CI.red, width:`${Math.round(topic.zeroSOV/topic.prompts*100)}%`, transition:"width .6s" }}/>
+              </div>
+            </div>
           </div>
 
-          {/* Zero Domain */}
-          <div className="card" style={{ padding:"16px 18px", border:`1.5px solid ${topic.zeroDomain>topic.prompts*.4?"#A4B1EF":CI.border}`, background:topic.zeroDomain>topic.prompts*.4?"#F5F5FF":"#FFFFFB" }}>
-            <div style={{ fontSize:12.5, fontWeight:700, color:"#5060A0", marginBottom:2 }}>Zero Domain Citation Prompts</div>
-            <div style={{ fontSize:11, color:CI.muted, marginBottom:6 }}>官網完全缺席的話題數</div>
-            <div style={{ fontSize:26, fontWeight:800, color:"#6768A6", fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>
-              {topic.zeroDomain}<span style={{ fontSize:13, color:CI.muted }}> / {topic.prompts}</span>
+          {/* Zero Domain Citation Prompts */}
+          <div className="card" style={{ padding:"18px 20px", background:"#FFFFFB" }}>
+            <div style={{ fontSize:12.5, fontWeight:600, color:CI.text, marginBottom:4 }}>Zero Domain Citation Prompts</div>
+            <div style={{ fontSize:18, fontWeight:700, color:"#5060A0", fontFamily:"'Syne',sans-serif", marginBottom:8, lineHeight:1.25 }}>
+              官網完全缺席的話題數
             </div>
-            <MiniBar val={topic.zeroDomain} max={topic.prompts} color="#A4B1EF"/>
-            <div style={{ fontSize:11, color:CI.muted, marginTop:7, lineHeight:1.5 }}>在這些 AI 回答裡完全未引用官網 → 官網內容覆蓋缺口</div>
+            <div style={{ fontSize:11.5, color:CI.muted, lineHeight:1.6 }}>
+              在這些問題的 AI 回答裡，完全沒有引用官網內容 → 網站內容缺口
+            </div>
+            <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:24, fontWeight:800, color:"#6768A6", fontFamily:"'Syne',sans-serif" }}>{topic.zeroDomain}</span>
+              <span style={{ fontSize:12, color:CI.muted }}>/ {topic.prompts} prompts</span>
+              <div style={{ flex:1, height:4, background:"#EBEBF8", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", borderRadius:3, background:"#A4B1EF", width:`${Math.round(topic.zeroDomain/topic.prompts*100)}%`, transition:"width .6s" }}/>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1483,7 +1561,7 @@ const ActionPlanTab = () => {
         </div>
       </div>
 
-      {/* ─── Action rules ─────────────────────────── */}
+      {/* ─── Action rules with prompt lists ─────────────────────────── */}
       {rules.length === 0 ? (
         <div className="card" style={{ textAlign:"center", padding:"30px", color:CI.muted }}>
           <div style={{ fontSize:24, marginBottom:8 }}>✅</div>
@@ -1492,7 +1570,7 @@ const ActionPlanTab = () => {
         </div>
       ) : (
         <div>
-          <div style={{ fontSize:12.5, fontWeight:700, color:CI.text, marginBottom:12, display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ fontSize:12.5, fontWeight:700, color:CI.text, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ background:topic.color, color:"white", borderRadius:20, padding:"2px 10px", fontSize:11 }}>
               {rules.length} 條行動建議
             </span>
@@ -1500,38 +1578,117 @@ const ActionPlanTab = () => {
           </div>
           {rules.map((ruleId, ri) => {
             const r = RULE_META[ruleId];
+            const topicPrompts = TOPIC_PROMPTS[selectedTopic] || [];
+
+            // Filter prompts relevant to each rule
+            let relevantPrompts = [];
+            if (ruleId === "pr_heat") {
+              relevantPrompts = topicPrompts; // all prompts when citation is low
+            } else if (ruleId === "pr_brand") {
+              relevantPrompts = topicPrompts.filter(p => p.zeroSOV);
+            } else if (ruleId === "web_content") {
+              relevantPrompts = topicPrompts.filter(p => p.noDomain);
+            }
+            const maxVol = Math.max(...relevantPrompts.map(p => p.vol), 1);
+
             return (
-              <div key={ri} className="card" style={{ marginBottom:10, borderLeft:`4px solid ${r.color}`, padding:"18px 22px" }}>
-                <div style={{ display:"flex", alignItems:"flex-start", gap:14 }}>
-                  {/* Rule number */}
-                  <div style={{ width:32, height:32, borderRadius:9, background:r.bg, border:`2px solid ${r.color}40`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <div key={ri} className="card" style={{ marginBottom:14, borderLeft:"4px solid " + r.color, padding:"20px 24px" }}>
+                {/* Rule header */}
+                <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:16 }}>
+                  <div style={{ width:32, height:32, borderRadius:9, background:r.bg, border:"2px solid " + r.color + "40", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                     <span style={{ fontSize:14, fontWeight:800, color:r.color }}>P{ri+1}</span>
                   </div>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:14.5, fontWeight:700, color:CI.text, marginBottom:5, fontFamily:"'Syne',sans-serif" }}>{r.label}</div>
-                    <div style={{ fontSize:12.5, color:CI.muted, lineHeight:1.7, marginBottom:12 }}>{r.desc}</div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                      <div style={{ background:`${r.color}08`, borderRadius:10, padding:"11px 14px", border:`1px solid ${r.color}20` }}>
-                        <div style={{ fontSize:9.5, fontWeight:700, letterSpacing:.1, textTransform:"uppercase", color:r.color, marginBottom:8 }}>目標指標</div>
-                        {r.targets.map((t, ti) => (
-                          <div key={ti} style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5, fontWeight:600, color:CI.text, marginBottom:4 }}>
-                            <span style={{ width:16, height:16, borderRadius:4, background:r.color, color:"white", fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>↑</span>
-                            {t}
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ background:"#F8F8FC", borderRadius:10, padding:"11px 14px", border:`1px solid ${CI.border}` }}>
-                        <div style={{ fontSize:9.5, fontWeight:700, letterSpacing:.1, textTransform:"uppercase", color:CI.mutedLight, marginBottom:8 }}>觀察指標</div>
-                        {r.watch.map((w, wi) => (
-                          <div key={wi} style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5, fontWeight:600, color:CI.text, marginBottom:4 }}>
-                            <span style={{ width:16, height:16, borderRadius:4, background:CI.mutedLight, color:"white", fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>◎</span>
-                            {w}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <div style={{ fontSize:15, fontWeight:700, color:CI.text, marginBottom:4, fontFamily:"'Syne',sans-serif" }}>{r.label}</div>
+                    <div style={{ fontSize:12.5, color:CI.muted, lineHeight:1.7 }}>{r.desc}</div>
+                  </div>
+                  {/* KPI pills */}
+                  <div style={{ display:"flex", flexDirection:"column", gap:5, flexShrink:0 }}>
+                    {r.targets.map((t,ti) => (
+                      <span key={ti} style={{ fontSize:11, fontWeight:700, color:r.color, background:r.bg, border:"1px solid " + r.color + "30", borderRadius:20, padding:"2px 10px", whiteSpace:"nowrap" }}>
+                        ↑ {t}
+                      </span>
+                    ))}
+                    {r.watch.map((w,wi) => (
+                      <span key={wi} style={{ fontSize:11, fontWeight:600, color:CI.muted, background:"#F4F4F8", border:"1px solid " + CI.border, borderRadius:20, padding:"2px 10px", whiteSpace:"nowrap" }}>
+                        ◎ {w}
+                      </span>
+                    ))}
                   </div>
                 </div>
+
+                {/* Prompt list */}
+                {relevantPrompts.length > 0 && (
+                  <div>
+                    {/* Table header */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 70px 70px", gap:8, padding:"7px 12px", background:"#F4F4F8", borderRadius:"8px 8px 0 0", borderBottom:"1px solid " + CI.border }}>
+                      <span style={{ fontSize:10.5, fontWeight:700, color:CI.mutedLight }}>
+                        {ruleId==="pr_brand" ? "Zero SOV 問題清單" : ruleId==="web_content" ? "Zero Domain Citation 問題清單" : "問題清單（依搜尋量排序）"}
+                        <span style={{ marginLeft:6, background:r.color, color:"white", borderRadius:20, padding:"1px 7px", fontSize:9, fontWeight:700 }}>{relevantPrompts.length}</span>
+                      </span>
+                      <span style={{ fontSize:10.5, fontWeight:700, color:CI.mutedLight, textAlign:"center" }}>AI 搜尋量</span>
+                      <span style={{ fontSize:10.5, fontWeight:700, color:CI.mutedLight, textAlign:"center" }}>SOV</span>
+                      <span style={{ fontSize:10.5, fontWeight:700, color:CI.mutedLight, textAlign:"center" }}>Domain</span>
+                    </div>
+
+                    {/* Prompt rows */}
+                    <div style={{ border:"1px solid " + CI.border, borderTop:"none", borderRadius:"0 0 8px 8px", overflow:"hidden" }}>
+                      {relevantPrompts.map((p, pi) => (
+                        <div key={pi} style={{
+                          display:"grid", gridTemplateColumns:"1fr 80px 70px 70px", gap:8,
+                          padding:"10px 12px", alignItems:"center",
+                          background:pi%2===0?"#FFFFFB":"#F8F8FC",
+                          borderBottom:pi<relevantPrompts.length-1?"1px solid " + CI.border:"none",
+                        }}>
+                          {/* Question */}
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                              {p.zeroSOV && (
+                                <span style={{ fontSize:9, fontWeight:700, color:"#C04040", background:"#FFF0F0", border:"1px solid #FFCCCC", borderRadius:4, padding:"1px 5px" }}>Zero SOV</span>
+                              )}
+                              {p.noDomain && (
+                                <span style={{ fontSize:9, fontWeight:700, color:"#5060A0", background:"#F0F0FB", border:"1px solid #D0D6F5", borderRadius:4, padding:"1px 5px" }}>No Domain</span>
+                              )}
+                            </div>
+                            <span style={{ fontSize:12.5, color:CI.text }}>{p.q}</span>
+                          </div>
+
+                          {/* Search volume bar */}
+                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            <div style={{ flex:1, height:4, background:"#EEEEF5", borderRadius:3, overflow:"hidden" }}>
+                              <div style={{ height:"100%", borderRadius:3, background:topic.color, width:`${Math.round(p.vol/maxVol*100)}%` }}/>
+                            </div>
+                            <span style={{ fontSize:10.5, fontWeight:600, color:CI.muted, minWidth:28, textAlign:"right" }}>{p.vol}</span>
+                          </div>
+
+                          {/* SOV status */}
+                          <div style={{ textAlign:"center" }}>
+                            {p.zeroSOV
+                              ? <span style={{ fontSize:11, fontWeight:700, color:CI.red }}>✗ 0%</span>
+                              : <span style={{ fontSize:11, fontWeight:700, color:CI.green }}>✓ 有</span>
+                            }
+                          </div>
+
+                          {/* Domain status */}
+                          <div style={{ textAlign:"center" }}>
+                            {p.noDomain
+                              ? <span style={{ fontSize:11, fontWeight:700, color:"#5060A0" }}>✗ 無</span>
+                              : <span style={{ fontSize:11, fontWeight:700, color:CI.green }}>✓ 有</span>
+                            }
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Action hint */}
+                    <div style={{ marginTop:10, padding:"9px 13px", background:r.bg, borderRadius:8, border:"1px solid " + r.color + "25", fontSize:12, color:CI.text, lineHeight:1.6 }}>
+                      <strong style={{ color:r.color }}>建議行動：</strong>
+                      {ruleId==="pr_brand" && `針對以上 ${relevantPrompts.length} 個問題，製作包含品牌名稱的 PR 內容（新聞稿、媒體報導、KOL 合作），讓 AI 引擎在回答這些問題時能夠引用並提及品牌。`}
+                      {ruleId==="web_content" && `針對以上 ${relevantPrompts.length} 個問題，在官網建立對應的深度內容（FAQ、部落格文章、比較頁面），提升官網在 AI 引用資料庫中的覆蓋率。`}
+                      {ruleId==="pr_heat" && `此 Topic 的 AI 搜尋熱度尚低（Total Citation = ${topic.totalCitation}）。優先透過 PR 製造外部討論，讓更多外部來源開始引用與這些問題相關的內容，建立議題熱度。`}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
