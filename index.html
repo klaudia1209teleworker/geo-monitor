@@ -9,6 +9,7 @@
   <script src="https://unpkg.com/prop-types@15/prop-types.min.js" crossorigin></script>
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.2/babel.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -37,12 +38,37 @@
     .table-row { display: grid; align-items: center; padding: 9px 12px; border-radius: 10px; margin-bottom: 3px; font-size: 13px; }
     .table-row:nth-child(odd) { background: #F8F8FC; }
     .url-badge { display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; }
+    /* Network Diagram D3 styles */
+    .net-link { stroke: #d0d6f5; stroke-width: 0.8px; stroke-opacity: 0.7; fill: none; }
+    .net-link.hi { stroke: #6768A6; stroke-opacity: 1; stroke-width: 2px; }
+    .net-link.dim { stroke-opacity: 0.06; }
+    .node-paa rect { cursor: pointer; }
+    .node-paa:hover rect { filter: brightness(1.1); }
+    .node-paa text { font-size: 7.5px; font-family: 'DM Sans', sans-serif; font-weight: 600; pointer-events: none; text-anchor: middle; dominant-baseline: middle; fill: #FFFFFB; }
+    .node-paa.zero-sov rect { stroke: #F88888 !important; stroke-width: 2.5px !important; stroke-dasharray: 4 2; }
+    .node-paa.no-domain rect { fill-opacity: 0.45 !important; }
+    .node-paa.both-gap rect { stroke: #F88888 !important; stroke-width: 2.5px !important; stroke-dasharray: 4 2; fill-opacity: 0.45 !important; }
+    .node-url { cursor: pointer; }
+    .node-url:hover circle { filter: brightness(1.12); }
+    .node-url.micron circle { fill: #6768A6; stroke: #4b4c8a; stroke-width: 2px; }
+    .node-url.external circle { fill: transparent; stroke: #F88888; stroke-width: 2.5px; }
+    .node-url.zh-media circle { fill: #8FF4D2; stroke: #5bcfaa; stroke-width: 2px; }
+    .node-url.zh-social circle { fill: transparent; stroke: #A4B1EF; stroke-width: 2.5px; stroke-dasharray: 4 2; }
+    .node-url text.cnt { font-family: 'DM Sans', monospace; pointer-events: none; text-anchor: middle; dominant-baseline: middle; font-weight: 700; }
+    .node-url.micron text.cnt { fill: #FFFFFB; }
+    .node-url.external text.cnt { fill: #F88888; }
+    .node-url.zh-media text.cnt { fill: #1a4a3a; }
+    .node-url.zh-social text.cnt { fill: #6768A6; }
+    .node-url text.lbl { fill: #9999aa; font-size: 8px; font-family: 'DM Sans', sans-serif; pointer-events: none; text-anchor: middle; }
+    #net-tooltip { position: fixed; background: rgba(255,255,251,0.98); border: 1.5px solid #d0d6f5; padding: 10px 13px; border-radius: 8px; pointer-events: none; z-index: 9999; max-width: 280px; display: none; font-size: 11px; line-height: 1.5; box-shadow: 0 6px 24px rgba(103,104,166,0.18); }
   </style>
 </head>
 <body>
 <div id="root"></div>
+<div id="net-tooltip"></div>
+
 <script type="text/babel" data-presets="react">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 const {
   LineChart, Line, BarChart, Bar, RadarChart, Radar, PolarGrid,
   PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -54,34 +80,36 @@ const CI = {
   secondary: "#A4B1EF", primary: "#6768A6", bg: "#FFFFFB",
   green: "#1AAE6F", amber: "#F5A623", red: "#E85454",
   border: "#EAEAF0", muted: "#8888A0", mutedLight: "#CCCCDA",
+  paaGreen: "#34A853",
 };
 
-const engines = ["ChatGPT", "Gemini", "Perplexity", "Claude", "Copilot"];
-const engineColors = ["#10a37f", "#4285F4", "#20B2AA", "#C084FC", "#0078D4"];
+// ── Engines — AI Overview PAA replaces Copilot (PRD DD-35) ──
+const engines = ["ChatGPT", "Gemini", "Perplexity", "Claude", "AI Overview PAA"];
+const engineColors = ["#10a37f", "#4285F4", "#20B2AA", "#C084FC", "#34A853"];
 
 const projects = [
-  { id: 1, name: "Teleworker zh-TW", domain: "teleworker.io", locale: "zh-TW", freq: "weekly" },
-  { id: 2, name: "Teleworker en-US", domain: "teleworker.io", locale: "en-US", freq: "monthly" },
-  { id: 3, name: "Yummi Go zh-TW",  domain: "yummigo.app",   locale: "zh-TW", freq: "weekly" },
+  { id: 1, name: "Teleworker zh-TW", domain: "teleworker.com.tw", locale: "zh-TW", freq: "weekly" },
+  { id: 2, name: "Teleworker en-US", domain: "teleworker.com.tw", locale: "en-US", freq: "monthly" },
+  { id: 3, name: "Yummi Go zh-TW",  domain: "yummigo.app",       locale: "zh-TW", freq: "weekly" },
 ];
 
 const budgetData = [
-  { engine: "ChatGPT",    color: "#10a37f", used: 68, cap: 100, weekUsed: 18, weekCap: 25, status: "ok" },
-  { engine: "Gemini",     color: "#4285F4", used: 82, cap: 100, weekUsed: 22, weekCap: 25, status: "warn" },
-  { engine: "Perplexity", color: "#20B2AA", used: 45, cap: 100, weekUsed: 12, weekCap: 25, status: "ok" },
-  { engine: "Claude",     color: "#C084FC", used: 95, cap: 100, weekUsed: 24, weekCap: 25, status: "danger" },
-  { engine: "Copilot",    color: "#0078D4", used: 30, cap: 100, weekUsed: 8,  weekCap: 25, status: "ok" },
+  { engine: "ChatGPT",        color: "#10a37f", used: 68, cap: 100, weekUsed: 18, weekCap: 25, status: "ok" },
+  { engine: "Gemini",         color: "#4285F4", used: 82, cap: 100, weekUsed: 22, weekCap: 25, status: "warn" },
+  { engine: "Perplexity",     color: "#20B2AA", used: 45, cap: 100, weekUsed: 12, weekCap: 25, status: "ok" },
+  { engine: "Claude",         color: "#C084FC", used: 95, cap: 100, weekUsed: 24, weekCap: 25, status: "danger" },
+  { engine: "AI Overview PAA",color: "#34A853", used: 30, cap: 100, weekUsed: 8,  weekCap: 25, status: "ok" },
 ];
 
 const mentionTrend = [
-  { date: "1/1",  ChatGPT: 42, Gemini: 28, Perplexity: 35, Claude: 18, Copilot: 12 },
-  { date: "1/8",  ChatGPT: 48, Gemini: 31, Perplexity: 38, Claude: 22, Copilot: 14 },
-  { date: "1/15", ChatGPT: 45, Gemini: 36, Perplexity: 41, Claude: 25, Copilot: 16 },
-  { date: "1/22", ChatGPT: 55, Gemini: 40, Perplexity: 44, Claude: 30, Copilot: 19 },
-  { date: "2/1",  ChatGPT: 60, Gemini: 44, Perplexity: 50, Claude: 35, Copilot: 22 },
-  { date: "2/8",  ChatGPT: 58, Gemini: 48, Perplexity: 55, Claude: 40, Copilot: 25 },
-  { date: "2/15", ChatGPT: 65, Gemini: 52, Perplexity: 60, Claude: 44, Copilot: 28 },
-  { date: "2/22", ChatGPT: 70, Gemini: 56, Perplexity: 64, Claude: 50, Copilot: 31 },
+  { date: "1/1",  ChatGPT: 42, Gemini: 28, Perplexity: 35, Claude: 18, "AI Overview PAA": 22 },
+  { date: "1/8",  ChatGPT: 48, Gemini: 31, Perplexity: 38, Claude: 22, "AI Overview PAA": 28 },
+  { date: "1/15", ChatGPT: 45, Gemini: 36, Perplexity: 41, Claude: 25, "AI Overview PAA": 32 },
+  { date: "1/22", ChatGPT: 55, Gemini: 40, Perplexity: 44, Claude: 30, "AI Overview PAA": 38 },
+  { date: "2/1",  ChatGPT: 60, Gemini: 44, Perplexity: 50, Claude: 35, "AI Overview PAA": 42 },
+  { date: "2/8",  ChatGPT: 58, Gemini: 48, Perplexity: 55, Claude: 40, "AI Overview PAA": 46 },
+  { date: "2/15", ChatGPT: 65, Gemini: 52, Perplexity: 60, Claude: 44, "AI Overview PAA": 50 },
+  { date: "2/22", ChatGPT: 70, Gemini: 56, Perplexity: 64, Claude: 50, "AI Overview PAA": 56 },
 ];
 
 const sovData = [
@@ -111,11 +139,11 @@ const radarData = [
 ];
 
 const alerts = [
-  { type: "danger",  msg: "Claude 月預算已達 95%，建議提高上限或暫停非核心查詢",     time: "6h 前" },
-  { type: "warn",    msg: "Perplexity 上「遠端工作平台」查詢競品 A 引用率上升 12%", time: "2h 前" },
-  { type: "success", msg: "ChatGPT 新增對您品牌的正向引用，情緒分數 +8",            time: "5h 前" },
-  { type: "danger",  msg: "Gemini 針對「HR 科技」查詢移除品牌引用連結",              time: "1d 前" },
-  { type: "info",    msg: "Claude 新增支援 schema 解析，建議更新結構化資料",         time: "2d 前" },
+  { type: "danger",  msg: "Claude 月預算已達 95%，建議提高上限或暫停非核心查詢",             time: "6h 前" },
+  { type: "warn",    msg: "Perplexity 上「遠端工作平台」查詢競品 A 引用率上升 12%",         time: "2h 前" },
+  { type: "success", msg: "ChatGPT 新增對您品牌的正向引用，情緒分數 +8",                    time: "5h 前" },
+  { type: "danger",  msg: "Gemini 針對「HR 科技」查詢移除品牌引用連結",                     time: "1d 前" },
+  { type: "info",    msg: "AI Overview PAA 新增支援 schema 解析，建議更新結構化資料",       time: "2d 前" },
 ];
 
 const alertStyle = {
@@ -147,34 +175,53 @@ const offsiteUrls = [
   { rank: 6,  url: "reddit.com/r/remotework",      citations: 44,  change: 3,  topics: 3 },
   { rank: 7,  url: "medium.com/ai-tools-compare",  citations: 38,  change: -2, topics: 3 },
   { rank: 8,  url: "linkedin.com/pulse/remote",    citations: 33,  change: 6,  topics: 2 },
-  { rank: 9,  url: "trustpilot.com/teleworker.io", citations: 28,  change: 1,  topics: 2 },
+  { rank: 9,  url: "trustpilot.com/teleworker",    citations: 28,  change: 1,  topics: 2 },
   { rank: 10, url: "venturebeat.com/collab",       citations: 22,  change: 9,  topics: 2 },
 ];
 
-const networkNodes = {
+// ── Subtopic colours for PAA nodes ──
+const ST_COLOR = {
+  "AI 工具":   "#6768A6",
+  "遠端工作":  "#1AAE6F",
+  "HR 科技":   "#F88888",
+  "數位轉型":  "#A4B1EF",
+  "競品比較":  "#F5A623",
+};
+
+// ── Enhanced Network Data (D3 format) ──
+const networkData = {
   paa: [
-    { id: "p1", label: "AI 協作工具推薦",  x: 10,  y: 30,  zeroSOV: false },
-    { id: "p2", label: "遠端工作平台比較", x: 10,  y: 90,  zeroSOV: false },
-    { id: "p3", label: "HR 科技解決方案",  x: 10,  y: 150, zeroSOV: true  },
-    { id: "p4", label: "企業數位轉型工具", x: 10,  y: 210, zeroSOV: false },
-    { id: "p5", label: "團隊溝通工具",     x: 10,  y: 255, zeroSOV: true  },
-    { id: "p6", label: "專案管理軟體",     x: 10,  y: 300, zeroSOV: false },
+    { id:"p1", text:"AI 協作工具推薦",   subtopic:"AI 工具",  zeroSOV:false, noDomain:false },
+    { id:"p2", text:"遠端工作平台比較",  subtopic:"遠端工作", zeroSOV:false, noDomain:false },
+    { id:"p3", text:"HR 科技解決方案",   subtopic:"HR 科技",  zeroSOV:true,  noDomain:false },
+    { id:"p4", text:"企業數位轉型工具",  subtopic:"數位轉型", zeroSOV:false, noDomain:false },
+    { id:"p5", text:"團隊溝通工具",      subtopic:"AI 工具",  zeroSOV:true,  noDomain:true  },
+    { id:"p6", text:"專案管理軟體",      subtopic:"遠端工作", zeroSOV:false, noDomain:true  },
+    { id:"p7", text:"混合辦公解決方案",  subtopic:"遠端工作", zeroSOV:false, noDomain:false },
+    { id:"p8", text:"B2B SaaS 工具推薦", subtopic:"數位轉型", zeroSOV:true,  noDomain:false },
+    { id:"p9", text:"Teleworker vs Slack",subtopic:"競品比較", zeroSOV:false, noDomain:false },
   ],
-  urlNodes: [
-    { id: "u1", label: "features",    x: 380, y: 70,  onsite: true,  r: 28, count: 4 },
-    { id: "u2", label: "blog",        x: 380, y: 165, onsite: true,  r: 22, count: 3 },
-    { id: "u3", label: "pricing",     x: 380, y: 250, onsite: true,  r: 18, count: 2 },
-    { id: "u4", label: "g2.com",      x: 530, y: 110, onsite: false, r: 30, count: 5 },
-    { id: "u5", label: "capterra",    x: 530, y: 215, onsite: false, r: 24, count: 3 },
-    { id: "u6", label: "techcrunch",  x: 650, y: 160, onsite: false, r: 20, count: 2 },
+  urls: [
+    { id:"u1", url:"teleworker.com.tw/features", label:"features",  type:"micron",    count:6 },
+    { id:"u2", url:"teleworker.com.tw/blog",     label:"blog",      type:"micron",    count:4 },
+    { id:"u3", url:"teleworker.com.tw/pricing",  label:"pricing",   type:"micron",    count:2 },
+    { id:"u4", url:"techcrunch.com/review",       label:"techcrunch",type:"external",  count:5 },
+    { id:"u5", url:"g2.com/teleworker",           label:"g2.com",    type:"external",  count:4 },
+    { id:"u6", url:"capterra.com/alternatives",   label:"capterra",  type:"external",  count:3 },
+    { id:"u7", url:"ithome.com.tw/articles",      label:"iThome",    type:"zh-media",  count:3 },
+    { id:"u8", url:"104.com.tw/remote",           label:"104.com",   type:"zh-social", count:2 },
+    { id:"u9", url:"dcard.tw/f/job",              label:"Dcard",     type:"zh-social", count:2 },
   ],
-  edges: [
-    { from:"p1", to:"u1", w:2.5 }, { from:"p1", to:"u4", w:1.5 },
-    { from:"p2", to:"u1", w:2 },   { from:"p2", to:"u2", w:2 },
-    { from:"p3", to:"u4", w:2.5 }, { from:"p3", to:"u5", w:1.5 },
-    { from:"p4", to:"u2", w:2 },   { from:"p4", to:"u5", w:2 },
-    { from:"p5", to:"u5", w:2 },   { from:"p5", to:"u6", w:1.5 },
-    { from:"p6", to:"u1", w:1 },   { from:"p6", to:"u3", w:1.5 }, { from:"p6", to:"u6", w:1 },
+  links: [
+    {source:"p1",target:"u1"},{source:"p1",target:"u4"},{source:"p1",target:"u7"},
+    {source:"p2",target:"u1"},{source:"p2",target:"u2"},{source:"p2",target:"u5"},
+    {source:"p3",target:"u4"},{source:"p3",target:"u6"},{source:"p3",target:"u8"},
+    {source:"p4",target:"u2"},{source:"p4",target:"u5"},{source:"p4",target:"u7"},
+    {source:"p5",target:"u4"},{source:"p5",target:"u9"},
+    {source:"p6",target:"u1"},{source:"p6",target:"u3"},
+    {source:"p7",target:"u7"},{source:"p7",target:"u2"},{source:"p7",target:"u8"},
+    {source:"p8",target:"u5"},{source:"p8",target:"u6"},
+    {source:"p9",target:"u1"},{source:"p9",target:"u4"},{source:"p9",target:"u9"},
   ],
 };
 
@@ -263,77 +310,341 @@ const BudgetGauge = ({ engine, color, used, weekUsed, weekCap, status }) => {
   );
 };
 
-/* ── Network Diagram ── */
-const NetworkDiagram = ({ filter }) => {
-  const [hovered, setHovered] = useState(null);
-  const nodeMap = {};
-  [...networkNodes.paa, ...networkNodes.urlNodes].forEach(n => nodeMap[n.id]=n);
+/* ══════════════════════════════════════════
+   D3 Network Diagram Component
+══════════════════════════════════════════ */
+const NetworkDiagram = ({ urlFilter, gapFilter, onGapToggle, subtopicFilter }) => {
+  const svgRef = useRef(null);
+  const simRef  = useRef(null);
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+
+    // Clear previous render
+    d3.select(el).selectAll("*").remove();
+
+    const W = el.clientWidth  || 700;
+    const H = el.clientHeight || 340;
+
+    const svg = d3.select(el)
+      .attr("viewBox", `0 0 ${W} ${H}`)
+      .style("overflow","hidden");
+
+    // Zoom
+    const gRoot = svg.append("g");
+    const zoom = d3.zoom().scaleExtent([0.3, 3]).on("zoom", e => gRoot.attr("transform", e.transform));
+    svg.call(zoom);
+
+    // Arrow marker
+    svg.append("defs").append("marker")
+      .attr("id","net-arr").attr("markerWidth",6).attr("markerHeight",6)
+      .attr("refX",5).attr("refY",3).attr("orient","auto")
+      .append("path").attr("d","M0,0 L0,6 L6,3 z").attr("fill","#C8C8DA");
+
+    // Build node/link arrays (deep clone for D3 mutation)
+    const allNodes = [
+      ...networkData.paa.map(p => ({ ...p, nodeType:"paa" })),
+      ...networkData.urls.map(u => ({ ...u, nodeType:"url" })),
+    ];
+    const nm = {};
+    allNodes.forEach(n => nm[n.id] = n);
+    const linkData = networkData.links
+      .map(l => ({ source: nm[l.source], target: nm[l.target] }))
+      .filter(l => l.source && l.target);
+
+    const maxCount = d3.max(networkData.urls, d => d.count) || 1;
+    const rScale = d3.scaleSqrt().domain([0, maxCount]).range([14, 44]);
+    const fScale = d3.scaleSqrt().domain([0, maxCount]).range([8, 14]);
+
+    // Force simulation
+    const sim = d3.forceSimulation(allNodes)
+      .force("link",      d3.forceLink(linkData).id(d => d.id).distance(130).strength(0.3))
+      .force("charge",    d3.forceManyBody().strength(d => d.nodeType==="url" ? -450 : -55))
+      .force("center",    d3.forceCenter(W/2, H/2))
+      .force("collision", d3.forceCollide().radius(d => d.nodeType==="url" ? rScale(d.count||0)+10 : 20))
+      .force("x",         d3.forceX(W/2).strength(0.02))
+      .force("y",         d3.forceY(H/2).strength(0.02));
+
+    simRef.current = sim;
+
+    // Drag
+    function mkDrag(s) {
+      return d3.drag()
+        .on("start",(e,d) => { if(!e.active) s.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; d._dr=false; })
+        .on("drag", (e,d) => { d.fx=e.x; d.fy=e.y; d._dr=true; })
+        .on("end",  (e,d) => { if(!e.active) s.alphaTarget(0); d.fx=null; d.fy=null; });
+    }
+
+    // Links
+    const linkEl = gRoot.append("g").selectAll("line").data(linkData).join("line")
+      .attr("class","net-link")
+      .attr("marker-end","url(#net-arr)");
+
+    // PAA nodes
+    const PAA_W = 80, PAA_H = 26;
+    let pinnedNode = null;
+
+    const tooltip = document.getElementById("net-tooltip");
+
+    function showTip(e, d) {
+      if (!tooltip) return;
+      tooltip.style.display = "block";
+      if (d.nodeType === "paa") {
+        const gapTags = [];
+        if (d.zeroSOV)  gapTags.push(`<span style="background:#fff0f0;color:#F88888;border:1px solid #f8cccc;border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700">Zero SOV</span>`);
+        if (d.noDomain) gapTags.push(`<span style="background:#f0f0fb;color:#6768A6;border:1px solid #d0d6f5;border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700">No Domain Citation</span>`);
+        const gapHtml = gapTags.length ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${gapTags.join("")}</div>` : "";
+        tooltip.innerHTML = `<div style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${ST_COLOR[d.subtopic]||"#aaa"};margin-bottom:3px">${d.subtopic}</div><div style="color:#464653;font-weight:500">${d.text}</div>${gapHtml}`;
+      } else {
+        const typeMap = { micron:"🔵 官網",  "zh-media":"📰 中文媒體", "zh-social":"💬 中文社群", external:"🌐 外部來源" };
+        const typeLabel = typeMap[d.type] || "🌐 外部來源";
+        tooltip.innerHTML = `<div style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9999aa;margin-bottom:3px">${typeLabel}</div><div style="color:#464653;word-break:break-all">${d.url}</div><div style="margin-top:5px;font-size:11px;font-weight:700;color:#6768A6">關聯問題數：${d.count}</div><div style="margin-top:3px;font-size:9px;color:#8FF4D2;background:#6768A6;padding:2px 7px;border-radius:3px;display:inline-block">👆 點擊開啟</div>`;
+      }
+    }
+    function mvTip(e) { if(tooltip){ tooltip.style.left=(e.clientX+14)+"px"; tooltip.style.top=(e.clientY-14)+"px"; } }
+    function hideTip() { if(tooltip) tooltip.style.display="none"; }
+
+    function hlNode(d, on) {
+      linkEl
+        .classed("hi",  l => on && (l.source.id===d.id || l.target.id===d.id))
+        .classed("dim", l => on && !(l.source.id===d.id || l.target.id===d.id));
+    }
+    function togglePin(d) {
+      if (pinnedNode === d.id) { pinnedNode = null; linkEl.classed("hi",false).classed("dim",false); }
+      else { pinnedNode = d.id; hlNode(d, true); }
+    }
+
+    const paaG = gRoot.append("g").selectAll(".node-paa")
+      .data(allNodes.filter(n => n.nodeType==="paa")).join("g")
+      .attr("class", d => {
+        let c = "node-paa";
+        if (d.zeroSOV && d.noDomain) c += " both-gap";
+        else if (d.zeroSOV)          c += " zero-sov";
+        else if (d.noDomain)         c += " no-domain";
+        return c;
+      })
+      .call(mkDrag(sim))
+      .on("mouseover", (e,d) => { showTip(e,d); hlNode(d,true); })
+      .on("mousemove", mvTip)
+      .on("mouseout",  (e,d) => { hideTip(); if(pinnedNode!==d.id) hlNode(d,false); })
+      .on("click",     (e,d) => { if(!d._dr) togglePin(d); d._dr=false; });
+
+    paaG.append("rect")
+      .attr("x", -PAA_W/2).attr("y", -PAA_H/2)
+      .attr("width", PAA_W).attr("height", PAA_H).attr("rx", 4)
+      .attr("fill",         d => ST_COLOR[d.subtopic] || CI.primary)
+      .attr("fill-opacity", 0.85)
+      .attr("stroke",       d => { try { const c=d3.color(ST_COLOR[d.subtopic]||CI.primary); return c?c.darker(0.4):"#888"; } catch(err){ return "#888"; } })
+      .attr("stroke-width", 1.5);
+
+    paaG.append("text")
+      .text(d => { const t=d.text; return t.length>11 ? t.substring(0,11)+"…" : t; });
+
+    // URL nodes
+    const urlG = gRoot.append("g").selectAll(".node-url")
+      .data(allNodes.filter(n => n.nodeType==="url")).join("g")
+      .attr("class", d => `node-url ${d.type||"external"}`)
+      .call(mkDrag(sim))
+      .on("mouseover", (e,d) => { showTip(e,d); hlNode(d,true); })
+      .on("mousemove", mvTip)
+      .on("mouseout",  (e,d) => { hideTip(); if(pinnedNode!==d.id) hlNode(d,false); })
+      .on("click",     (e,d) => { if(!d._dr){ window.open(d.url,"_blank","noopener,noreferrer"); } d._dr=false; });
+
+    urlG.append("circle").attr("r", d => rScale(d.count||0));
+    urlG.append("text").attr("class","cnt")
+      .text(d => d.count||"")
+      .attr("font-size", d => fScale(d.count||0)+"px");
+    urlG.append("text").attr("class","lbl")
+      .attr("dy", d => rScale(d.count||0)+12)
+      .text(d => d.label.length>13 ? d.label.substring(0,13)+"…" : d.label);
+
+    sim.on("tick", () => {
+      linkEl
+        .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+      paaG.attr("transform", d => `translate(${d.x},${d.y})`);
+      urlG.attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+
+    return () => { sim.stop(); hideTip(); };
+  }, []);
+
+  // Apply URL filter via CSS opacity
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    d3.select(el).selectAll(".node-url")
+      .style("opacity", d => {
+        if (urlFilter === "onsite")  return d.type==="micron" ? 1 : 0.08;
+        if (urlFilter === "offsite") return d.type!=="micron" ? 1 : 0.08;
+        return 1;
+      });
+    d3.select(el).selectAll(".net-link")
+      .style("opacity", d => {
+        const t = d.target.type;
+        if (urlFilter === "onsite")  return t==="micron"  ? 0.7 : 0.04;
+        if (urlFilter === "offsite") return t!=="micron"  ? 0.7 : 0.04;
+        return 0.7;
+      });
+  }, [urlFilter]);
+
+  // Gap filter
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    d3.select(el).selectAll(".node-paa")
+      .style("opacity", d => {
+        if (!gapFilter) return 1;
+        return (d.zeroSOV || d.noDomain) ? 1 : 0.06;
+      });
+  }, [gapFilter]);
+
+  // Subtopic filter
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el || !subtopicFilter) return;
+    const active = new Set(subtopicFilter);
+    d3.select(el).selectAll(".node-paa")
+      .style("opacity", d => !gapFilter && active.size > 0 ? (active.has(d.subtopic) ? 1 : 0.05) : undefined);
+    d3.select(el).selectAll(".net-link")
+      .style("opacity", d => !gapFilter && active.size > 0 ? (active.has(d.source.subtopic) ? 0.6 : 0.03) : undefined);
+  }, [subtopicFilter, gapFilter]);
 
   return (
-    <svg viewBox="0 0 720 340" style={{ width:"100%", maxHeight:320, display:"block" }}>
-      <defs>
-        <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L6,3 z" fill="#C8C8DA"/>
-        </marker>
-      </defs>
-      {networkNodes.edges.map((e,i) => {
-        const f = nodeMap[e.from]; const t = nodeMap[e.to];
-        const isOn = t.onsite;
-        const visible = filter==="all" || (filter==="onsite"&&isOn) || (filter==="offsite"&&!isOn);
-        return (
-          <line key={i}
-            x1={f.x+138} y1={f.y+14}
-            x2={t.x-t.r} y2={t.y}
-            stroke={isOn?CI.primary:CI.secondary}
-            strokeWidth={e.w}
-            strokeOpacity={visible?0.45:0.05}
-            strokeDasharray={isOn?"none":"5 3"}
-            markerEnd="url(#arr)"
-          />
-        );
-      })}
-      {networkNodes.paa.map(n => (
-        <g key={n.id} style={{ cursor:"pointer" }}
-          onMouseEnter={() => setHovered(n.id)}
-          onMouseLeave={() => setHovered(null)}
-        >
-          <rect x={n.x} y={n.y} width={136} height={28} rx={6}
-            fill={n.zeroSOV?"#FFF0F0":hovered===n.id?"#ECEDF7":"#F4F4F8"}
-            stroke={n.zeroSOV?CI.highlight:hovered===n.id?CI.primary:CI.border}
-            strokeWidth={n.zeroSOV||hovered===n.id?1.5:1}
-          />
-          <text x={n.x+68} y={n.y+18} textAnchor="middle" fontSize="11" fill={n.zeroSOV?CI.red:CI.text} fontFamily="DM Sans" fontWeight={n.zeroSOV?"600":"400"}>
-            {n.label}
-          </text>
-          {n.zeroSOV && <circle cx={n.x+130} cy={n.y+4} r={4} fill={CI.highlight}/>}
-        </g>
-      ))}
-      {networkNodes.urlNodes.map(n => {
-        const visible = filter==="all" || (filter==="onsite"&&n.onsite) || (filter==="offsite"&&!n.onsite);
-        return (
-          <g key={n.id} style={{ cursor:"pointer" }}
-            onMouseEnter={() => setHovered(n.id)}
-            onMouseLeave={() => setHovered(null)}
-          >
-            <circle cx={n.x} cy={n.y} r={n.r}
-              fill={n.onsite?`${CI.primary}20`:"white"}
-              stroke={n.onsite?CI.primary:CI.secondary}
-              strokeWidth={hovered===n.id?2.5:1.5}
-              strokeDasharray={n.onsite?"none":"4 2"}
-              opacity={visible?1:0.15}
-            />
-            <text x={n.x} y={n.y+5} textAnchor="middle" fontSize="13" fontWeight="700" fill={n.onsite?CI.primary:CI.secondary} fontFamily="DM Sans">{n.count}</text>
-            <text x={n.x} y={n.y+n.r+14} textAnchor="middle" fontSize="9.5" fill={CI.muted} fontFamily="DM Sans">{n.label}</text>
-          </g>
-        );
-      })}
-      <g transform="translate(10,325)">
-        <rect x={0} y={-10} width={12} height={12} rx={2} fill="#F4F4F8" stroke={CI.border} strokeWidth={1}/><text x={16} y={0} fontSize="10" fill={CI.muted} fontFamily="DM Sans">PAA 問題</text>
-        <rect x={0} y={-10} width={12} height={12} rx={2} fill="#FFF0F0" stroke={CI.highlight} strokeWidth={1.5} transform="translate(90,0)"/><text x={106} y={0} fontSize="10" fill={CI.muted} fontFamily="DM Sans">Zero SOV</text>
-        <circle cx={196} cy={-4} r={6} fill={`${CI.primary}20`} stroke={CI.primary} strokeWidth={1.5}/><text x={206} y={0} fontSize="10" fill={CI.muted} fontFamily="DM Sans">站內 URL（實心）</text>
-        <circle cx={306} cy={-4} r={6} fill="white" stroke={CI.secondary} strokeWidth={1.5} strokeDasharray="3 1.5"/><text x={316} y={0} fontSize="10" fill={CI.muted} fontFamily="DM Sans">站外 URL（數字=關聯問題數）</text>
-      </g>
-    </svg>
+    <svg ref={svgRef} style={{ width:"100%", height:330, display:"block", cursor:"grab" }}/>
+  );
+};
+
+/* ── Network Wrapper with Controls & Coverage Panel ── */
+const NetworkSection = () => {
+  const [urlFilter,      setUrlFilter]      = useState("all");
+  const [gapFilter,      setGapFilter]      = useState(false);
+  const [subtopicFilter, setSubtopicFilter] = useState(new Set());
+
+  const subtopics = Object.keys(ST_COLOR);
+  const zeroSOVCount  = networkData.paa.filter(p => p.zeroSOV).length;
+  const noDomainCount = networkData.paa.filter(p => p.noDomain).length;
+  const bothGapCount  = networkData.paa.filter(p => p.zeroSOV && p.noDomain).length;
+  const totalPaa      = networkData.paa.length;
+
+  const toggleSubtopic = (st) => {
+    setSubtopicFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(st)) next.delete(st); else next.add(st);
+      return next;
+    });
+  };
+
+  return (
+    <div className="card" style={{ marginBottom:16 }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span className="section-title" style={{ margin:0 }}>Network Diagram — PAA × 引用 URL</span>
+          <span className="badge" style={{ background:`${CI.primary}15`, color:CI.primary, fontSize:10 }}>Beta</span>
+        </div>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {/* URL type filter */}
+          {[{id:"all",label:"全部"},{id:"onsite",label:"官網"},{id:"offsite",label:"外部"}].map(f => (
+            <button key={f.id} onClick={() => setUrlFilter(f.id)}
+              style={{ padding:"4px 11px", borderRadius:8, border:`1.5px solid ${urlFilter===f.id?CI.primary:CI.border}`, background:urlFilter===f.id?`${CI.primary}12`:"white", color:urlFilter===f.id?CI.primary:CI.muted, fontSize:12, fontWeight:urlFilter===f.id?700:500 }}>
+              {f.label}
+            </button>
+          ))}
+          {/* Gap filter */}
+          <button onClick={() => setGapFilter(p => !p)}
+            style={{ padding:"4px 11px", borderRadius:8, border:`1.5px solid ${gapFilter?CI.highlight:CI.border}`, background:gapFilter?`${CI.highlight}12`:"white", color:gapFilter?CI.red:CI.muted, fontSize:12, fontWeight:gapFilter?700:500 }}>
+            {gapFilter ? "全部顯示" : "⚠ Gap 問題"}
+          </button>
+        </div>
+      </div>
+
+      {/* Subtopic filter pills */}
+      <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+        {subtopics.map(st => {
+          const on = subtopicFilter.has(st);
+          return (
+            <button key={st} onClick={() => toggleSubtopic(st)}
+              style={{ padding:"3px 10px", borderRadius:20, border:`1.5px solid ${on?ST_COLOR[st]:CI.border}`, background:on?`${ST_COLOR[st]}15`:"white", color:on?ST_COLOR[st]:CI.muted, fontSize:11, fontWeight:on?700:500 }}>
+              <span style={{ width:7, height:7, borderRadius:"50%", background:ST_COLOR[st], display:"inline-block", marginRight:5 }}/>
+              {st}
+            </button>
+          );
+        })}
+        {subtopicFilter.size > 0 && (
+          <button onClick={() => setSubtopicFilter(new Set())}
+            style={{ padding:"3px 10px", borderRadius:20, border:`1px dashed ${CI.border}`, background:"transparent", color:CI.mutedLight, fontSize:11 }}>
+            清除篩選 ×
+          </button>
+        )}
+      </div>
+
+      {/* Stats row */}
+      <div style={{ display:"flex", gap:14, marginBottom:8, fontSize:11.5, flexWrap:"wrap" }}>
+        <span style={{ color:CI.muted }}>{totalPaa} PAA 問題 · {networkData.urls.length} URL</span>
+        <span style={{ color:CI.highlight }}>⚠ {zeroSOVCount} Zero SOV</span>
+        <span style={{ color:CI.secondary }}>◎ {noDomainCount} No Domain Citation</span>
+        {bothGapCount > 0 && <span style={{ color:CI.red }}>🔴 {bothGapCount} 雙重缺口</span>}
+      </div>
+
+      {/* D3 SVG */}
+      <NetworkDiagram
+        urlFilter={urlFilter}
+        gapFilter={gapFilter}
+        subtopicFilter={subtopicFilter}
+      />
+
+      {/* Legend + Coverage Panel */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:14 }}>
+        {/* Legend */}
+        <div style={{ background:"#F8F8FC", borderRadius:10, padding:"12px 14px" }}>
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:.08, textTransform:"uppercase", color:CI.mutedLight, marginBottom:8 }}>圖例 Legend</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+            {[
+              { icon:<span style={{ width:14,height:14,borderRadius:"50%",background:CI.primary,display:"inline-block" }}/>, label:"官網 URL（micron）" },
+              { icon:<span style={{ width:14,height:14,borderRadius:"50%",background:"#8FF4D2",border:"2px solid #5bcfaa",display:"inline-block" }}/>, label:"中文媒體" },
+              { icon:<span style={{ width:14,height:14,borderRadius:"50%",border:"2.5px dashed #A4B1EF",display:"inline-block" }}/>, label:"中文社群／求職" },
+              { icon:<span style={{ width:14,height:14,borderRadius:"50%",border:"2.5px solid #F88888",display:"inline-block" }}/>, label:"外部來源" },
+              { icon:<span style={{ width:14,height:10,borderRadius:2,border:"2px dashed #F88888",background:"#fff5f5",display:"inline-block" }}/>, label:"Zero SOV 問題" },
+              { icon:<span style={{ width:14,height:10,borderRadius:2,background:CI.secondary,opacity:0.4,display:"inline-block" }}/>, label:"No Domain Citation" },
+            ].map((r,i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:6, fontSize:10.5, color:CI.muted }}>
+                {r.icon} {r.label}
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop:8, fontSize:9.5, color:CI.primary, fontFamily:"monospace", lineHeight:1.6, borderTop:`1px solid ${CI.border}`, paddingTop:8 }}>
+            ● 圓心數字 = 關聯問題數<br/>● 點擊 URL 節點開啟頁面<br/>● 點擊 PAA 節點高亮連結
+          </div>
+        </div>
+
+        {/* Coverage Stats */}
+        <div style={{ background:"#F8F8FC", borderRadius:10, padding:"12px 14px" }}>
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:.08, textTransform:"uppercase", color:CI.mutedLight, marginBottom:10 }}>Coverage Stats</div>
+          {[
+            { label:"Zero SOV Prompts",      val:zeroSOVCount,  total:totalPaa, gap:true  },
+            { label:"Zero Domain Citation",  val:noDomainCount, total:totalPaa, gap:true  },
+            { label:"有 Onsite Citation",    val:totalPaa-noDomainCount, total:totalPaa, gap:false },
+          ].map((r,i) => (
+            <div key={i} style={{ marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:4 }}>
+                <span style={{ color:CI.text }}>{r.label}</span>
+                <span style={{ fontFamily:"monospace", fontSize:12, fontWeight:700,
+                  color:r.gap?CI.red:CI.green, background:r.gap?"#fff0f0":"#f0fbf5",
+                  border:`1px solid ${r.gap?"#f8cccc":"#b8e8ca"}`, borderRadius:5, padding:"1px 8px" }}>
+                  {r.val} / {r.total}
+                </span>
+              </div>
+              <div style={{ height:5, background:"#e8e8f5", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", borderRadius:3, width:`${Math.round(r.val/r.total*100)}%`,
+                  background:r.gap?CI.red:CI.green, transition:"width .6s" }}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -393,120 +704,97 @@ const ProjectSwitcher = ({ projects, current, onSwitch }) => {
    TAB VIEWS
 ════════════════ */
 
-const OverviewTab = () => {
-  const [netFilter, setNetFilter] = useState("all");
-  return (
-    <div style={{ animation:"fadeIn 0.25s ease" }}>
-      {/* KPI */}
-      <div style={{ display:"flex", gap:14, marginBottom:20, flexWrap:"wrap" }}>
-        <MetricCard label="AI 引擎總提及次數" value="2,847" delta={18} sublabel="跨 5 大引擎統計" accent={CI.primary}/>
-        <MetricCard label="平均引用率"         value="68"    unit="%" delta={5}  sublabel="AI 回應中含品牌連結" accent={CI.secondary}/>
-        <MetricCard label="正向情緒比例"       value="84"    unit="%" delta={3}  sublabel="NLP 情緒分析" accent={CI.green}/>
-        <MetricCard label="查詢關鍵字覆蓋"     value="312"   unit=" 組" delta={-2} sublabel="觸發品牌提及的查詢" accent={CI.highlight}/>
-        <MetricCard label="聲量份額 SoV"       value="34"    unit="%" delta={7}  sublabel="vs 主要競品" accent={CI.button}/>
-      </div>
+const OverviewTab = () => (
+  <div style={{ animation:"fadeIn 0.25s ease" }}>
+    {/* KPI */}
+    <div style={{ display:"flex", gap:14, marginBottom:20, flexWrap:"wrap" }}>
+      <MetricCard label="AI 引擎總提及次數" value="2,847" delta={18} sublabel="跨 5 大引擎統計"   accent={CI.primary}/>
+      <MetricCard label="平均引用率"         value="68"    unit="%" delta={5}  sublabel="AI 回應中含品牌連結" accent={CI.secondary}/>
+      <MetricCard label="正向情緒比例"       value="84"    unit="%" delta={3}  sublabel="NLP 情緒分析"        accent={CI.green}/>
+      <MetricCard label="查詢關鍵字覆蓋"     value="312"   unit=" 組" delta={-2} sublabel="觸發品牌提及的查詢"  accent={CI.highlight}/>
+      <MetricCard label="聲量份額 SoV"       value="34"    unit="%" delta={7}  sublabel="vs 主要競品"          accent={CI.button}/>
+    </div>
 
-      {/* Budget */}
-      <div className="card" style={{ marginBottom:20 }}>
-        <SectionTitle badge="即時" extra={<span style={{ fontSize:11, color:CI.muted, fontWeight:400 }}>每日 4 次更新</span>}>API 預算狀態</SectionTitle>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
-          {budgetData.map(b => <BudgetGauge key={b.engine} {...b}/>)}
-        </div>
-      </div>
-
-      {/* Trend + SoV */}
-      <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:16, marginBottom:16 }}>
-        <div className="card">
-          <SectionTitle badge="即時">跨引擎品牌提及趨勢</SectionTitle>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={mentionTrend}>
-              <defs>{engines.map((e,i)=><linearGradient key={e} id={`g${i}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={engineColors[i]} stopOpacity={0.15}/><stop offset="95%" stopColor={engineColors[i]} stopOpacity={0}/></linearGradient>)}</defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5"/>
-              <XAxis dataKey="date" tick={{ fontSize:10, fill:"#AAAABC" }}/>
-              <YAxis tick={{ fontSize:10, fill:"#AAAABC" }}/>
-              <Tooltip content={<CustomTooltip/>}/>
-              {engines.map((e,i) => <Area key={e} type="monotone" dataKey={e} stroke={engineColors[i]} strokeWidth={2} fill={`url(#g${i})`}/>)}
-            </AreaChart>
-          </ResponsiveContainer>
-          <div style={{ display:"flex", gap:14, marginTop:10, flexWrap:"wrap" }}>
-            {engines.map((e,i) => <div key={e} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11.5 }}><span style={{ width:10, height:3, borderRadius:2, background:engineColors[i], display:"inline-block" }}/><span style={{ color:CI.muted }}>{e}</span></div>)}
-          </div>
-        </div>
-        <div className="card">
-          <SectionTitle>品牌聲量份額 SoV</SectionTitle>
-          <ResponsiveContainer width="100%" height={170}>
-            <PieChart><Pie data={sovData} cx="50%" cy="50%" innerRadius={48} outerRadius={74} paddingAngle={3} dataKey="value">{sovData.map((d,i)=><Cell key={i} fill={d.color}/>)}</Pie><Tooltip formatter={v=>`${v}%`}/></PieChart>
-          </ResponsiveContainer>
-          {sovData.map((d,i) => (
-            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12.5, marginBottom:4 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7 }}><span style={{ width:9, height:9, borderRadius:3, background:d.color, display:"inline-block" }}/><span style={{ color:"#666676" }}>{d.name}</span></div>
-              <span style={{ fontWeight:700, color:CI.text }}>{d.value}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Network Diagram */}
-      <div className="card" style={{ marginBottom:16 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-          <div className="section-title" style={{ margin:0 }}>
-            Network Diagram — PAA × 引用 URL 關聯圖
-            <span className="badge" style={{ background:`${CI.primary}15`, color:CI.primary, fontSize:10 }}>Beta</span>
-          </div>
-          <div style={{ display:"flex", gap:6 }}>
-            {[{id:"all",label:"全部"},{id:"onsite",label:"站內"},{id:"offsite",label:"站外"}].map(f => (
-              <button key={f.id} onClick={() => setNetFilter(f.id)}
-                style={{ padding:"4px 11px", borderRadius:8, border:`1.5px solid ${netFilter===f.id?CI.primary:CI.border}`, background:netFilter===f.id?`${CI.primary}12`:"white", color:netFilter===f.id?CI.primary:CI.muted, fontSize:12, fontWeight:netFilter===f.id?700:500 }}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ display:"flex", gap:14, marginBottom:8, fontSize:11.5 }}>
-          <span style={{ color:CI.muted }}>節點：{networkNodes.paa.length} PAA 問題 · {networkNodes.urlNodes.length} URL</span>
-          <span style={{ color:CI.highlight }}>● {networkNodes.paa.filter(n=>n.zeroSOV).length} Zero SOV 問題（需關注）</span>
-        </div>
-        <NetworkDiagram filter={netFilter}/>
-      </div>
-
-      {/* Top 10 URLs */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
-        <div className="card">
-          <SectionTitle badge="Top 10" extra={<span className="url-badge" style={{ background:`${CI.primary}15`, color:CI.primary }}>On-Site</span>}>站內引用 URL</SectionTitle>
-          <UrlTable data={onsiteUrls} isOnsite={true}/>
-        </div>
-        <div className="card">
-          <SectionTitle badge="Top 10" extra={<span className="url-badge" style={{ background:`${CI.secondary}30`, color:"#5060A0" }}>Off-Site</span>}>站外引用 URL</SectionTitle>
-          <UrlTable data={offsiteUrls} isOnsite={false}/>
-        </div>
-      </div>
-
-      {/* Bar + Alerts */}
-      <div style={{ display:"grid", gridTemplateColumns:"1.6fr 1fr", gap:16 }}>
-        <div className="card">
-          <SectionTitle>各 AI 引擎提及 &amp; 引用表現</SectionTitle>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={engines.map((e,i)=>({ name:e, 提及數:[70,56,64,50,31][i], 引用數:[52,40,58,38,22][i] }))} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5"/>
-              <XAxis dataKey="name" tick={{ fontSize:11.5, fill:"#888898" }}/>
-              <YAxis tick={{ fontSize:10, fill:"#AAAABC" }}/>
-              <Tooltip content={<CustomTooltip/>}/>
-              <Bar dataKey="提及數" fill={CI.primary}   radius={[4,4,0,0]}/>
-              <Bar dataKey="引用數" fill={CI.secondary} radius={[4,4,0,0]}/>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="card">
-          <SectionTitle badge={`${alerts.length} 則`}>智能預警</SectionTitle>
-          {alerts.map((a,i) => {
-            const s = alertStyle[a.type];
-            return <div key={i} style={{ background:s.bg, borderLeft:`3px solid ${s.border}`, borderRadius:"0 10px 10px 0", padding:"9px 13px", marginBottom:8 }}><div style={{ fontSize:12.5, color:CI.text, lineHeight:1.4 }}>{s.icon} {a.msg}</div><div style={{ fontSize:10.5, color:CI.mutedLight, marginTop:3 }}>{a.time}</div></div>;
-          })}
-        </div>
+    {/* Budget */}
+    <div className="card" style={{ marginBottom:20 }}>
+      <SectionTitle badge="即時" extra={<span style={{ fontSize:11, color:CI.muted, fontWeight:400 }}>每日 4 次更新</span>}>API 預算狀態</SectionTitle>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
+        {budgetData.map(b => <BudgetGauge key={b.engine} {...b}/>)}
       </div>
     </div>
-  );
-};
+
+    {/* Trend + SoV */}
+    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:16, marginBottom:16 }}>
+      <div className="card">
+        <SectionTitle badge="即時">跨引擎品牌提及趨勢</SectionTitle>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={mentionTrend}>
+            <defs>{engines.map((e,i)=><linearGradient key={e} id={`g${i}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={engineColors[i]} stopOpacity={0.15}/><stop offset="95%" stopColor={engineColors[i]} stopOpacity={0}/></linearGradient>)}</defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5"/>
+            <XAxis dataKey="date" tick={{ fontSize:10, fill:"#AAAABC" }}/>
+            <YAxis tick={{ fontSize:10, fill:"#AAAABC" }}/>
+            <Tooltip content={<CustomTooltip/>}/>
+            {engines.map((e,i) => <Area key={e} type="monotone" dataKey={e} stroke={engineColors[i]} strokeWidth={2} fill={`url(#g${i})`}/>)}
+          </AreaChart>
+        </ResponsiveContainer>
+        <div style={{ display:"flex", gap:14, marginTop:10, flexWrap:"wrap" }}>
+          {engines.map((e,i) => <div key={e} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11.5 }}><span style={{ width:10, height:3, borderRadius:2, background:engineColors[i], display:"inline-block" }}/><span style={{ color:CI.muted }}>{e}</span></div>)}
+        </div>
+      </div>
+      <div className="card">
+        <SectionTitle>品牌聲量份額 SoV</SectionTitle>
+        <ResponsiveContainer width="100%" height={170}>
+          <PieChart><Pie data={sovData} cx="50%" cy="50%" innerRadius={48} outerRadius={74} paddingAngle={3} dataKey="value">{sovData.map((d,i)=><Cell key={i} fill={d.color}/>)}</Pie><Tooltip formatter={v=>`${v}%`}/></PieChart>
+        </ResponsiveContainer>
+        {sovData.map((d,i) => (
+          <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12.5, marginBottom:4 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:7 }}><span style={{ width:9, height:9, borderRadius:3, background:d.color, display:"inline-block" }}/><span style={{ color:"#666676" }}>{d.name}</span></div>
+            <span style={{ fontWeight:700, color:CI.text }}>{d.value}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* D3 Network Diagram */}
+    <NetworkSection/>
+
+    {/* Top 10 URLs */}
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+      <div className="card">
+        <SectionTitle badge="Top 10" extra={<span className="url-badge" style={{ background:`${CI.primary}15`, color:CI.primary }}>On-Site</span>}>站內引用 URL</SectionTitle>
+        <UrlTable data={onsiteUrls} isOnsite={true}/>
+      </div>
+      <div className="card">
+        <SectionTitle badge="Top 10" extra={<span className="url-badge" style={{ background:`${CI.secondary}30`, color:"#5060A0" }}>Off-Site</span>}>站外引用 URL</SectionTitle>
+        <UrlTable data={offsiteUrls} isOnsite={false}/>
+      </div>
+    </div>
+
+    {/* Bar + Alerts */}
+    <div style={{ display:"grid", gridTemplateColumns:"1.6fr 1fr", gap:16 }}>
+      <div className="card">
+        <SectionTitle>各 AI 引擎提及 &amp; 引用表現</SectionTitle>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={engines.map((e,i)=>({ name:e==="AI Overview PAA"?"AI Ov. PAA":e, 提及數:[70,56,64,50,44][i], 引用數:[52,40,58,38,36][i] }))} barGap={4}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5"/>
+            <XAxis dataKey="name" tick={{ fontSize:10, fill:"#888898" }}/>
+            <YAxis tick={{ fontSize:10, fill:"#AAAABC" }}/>
+            <Tooltip content={<CustomTooltip/>}/>
+            <Bar dataKey="提及數" fill={CI.primary}   radius={[4,4,0,0]}/>
+            <Bar dataKey="引用數" fill={CI.secondary} radius={[4,4,0,0]}/>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="card">
+        <SectionTitle badge={`${alerts.length} 則`}>智能預警</SectionTitle>
+        {alerts.map((a,i) => {
+          const s = alertStyle[a.type];
+          return <div key={i} style={{ background:s.bg, borderLeft:`3px solid ${s.border}`, borderRadius:"0 10px 10px 0", padding:"9px 13px", marginBottom:8 }}><div style={{ fontSize:12.5, color:CI.text, lineHeight:1.4 }}>{s.icon} {a.msg}</div><div style={{ fontSize:10.5, color:CI.mutedLight, marginTop:3 }}>{a.time}</div></div>;
+        })}
+      </div>
+    </div>
+  </div>
+);
 
 const SeedCrawlerTab = () => {
   const [phase, setPhase] = useState("idle");
@@ -543,7 +831,7 @@ const SeedCrawlerTab = () => {
           </div>
           <div className="card">
             <SectionTitle>爬取設定</SectionTitle>
-            {[{l:"目標網域",v:"teleworker.io"},{l:"爬取模式",v:"Puppeteer SPA"},{l:"最大深度",v:"3 層"},{l:"語言過濾",v:"zh-TW"}].map((r,i) => (
+            {[{l:"目標網域",v:"teleworker.com.tw"},{l:"爬取模式",v:"Playwright SPA"},{l:"最大深度",v:"2 層"},{l:"語言過濾",v:"zh-TW"}].map((r,i) => (
               <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:i<3?`1px solid ${CI.border}`:"none", fontSize:13 }}>
                 <span style={{ color:CI.muted }}>{r.l}</span>
                 <span style={{ fontWeight:600, color:CI.text }}>{r.v}</span>
@@ -606,7 +894,7 @@ const PromptCrawlerTab = () => {
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <div className="card" style={{ width:420, padding:"28px 32px", boxShadow:"0 20px 60px rgba(0,0,0,0.15)" }}>
             <div style={{ fontSize:18, fontWeight:800, color:CI.text, fontFamily:"'Syne',sans-serif", marginBottom:8 }}>確認費用</div>
-            {[{item:"SERP 查詢次數（6 種子 × 4 層）",cost:"$0.048"},{item:"Featured Snippet 抓取",cost:"$0.012"},{item:"去重 Embedding 計算",cost:"$0.006"}].map((r,i)=>(
+            {[{item:"DataForSEO PAA 查詢（6 種子 × 4 層）",cost:"$0.048"},{item:"Featured Snippet 抓取",cost:"$0.012"},{item:"去重 Embedding 計算",cost:"$0.006"}].map((r,i)=>(
               <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:i<2?`1px solid ${CI.border}`:"none", fontSize:13 }}>
                 <span style={{ color:CI.muted }}>{r.item}</span><span style={{ fontWeight:700, color:CI.text }}>{r.cost}</span>
               </div>
@@ -689,12 +977,12 @@ const EngineTab = () => (
   <div style={{ animation:"fadeIn 0.25s ease" }}>
     <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:16 }}>
       {engines.map((e,i) => {
-        const mentions=[70,56,64,50,31][i], citations=[52,40,58,38,22][i], sentiment=[88,80,86,91,74][i];
+        const mentions=[70,56,64,50,44][i], citations=[52,40,58,38,36][i], sentiment=[88,80,86,91,74][i];
         const cRate=Math.round(citations/mentions*100);
         return (
           <div key={e} className="card" style={{ padding:"16px", borderTop:`3px solid ${engineColors[i]}` }}>
             <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12 }}>
-              <span style={{ width:9, height:9, borderRadius:"50%", background:engineColors[i], display:"inline-block" }}/><span style={{ fontWeight:700, fontSize:13.5, color:CI.text, fontFamily:"'Syne',sans-serif" }}>{e}</span>
+              <span style={{ width:9, height:9, borderRadius:"50%", background:engineColors[i], display:"inline-block" }}/><span style={{ fontWeight:700, fontSize:12.5, color:CI.text, fontFamily:"'Syne',sans-serif" }}>{e}</span>
             </div>
             {[{label:"提及次數",val:mentions,color:engineColors[i],pct:Math.min(mentions*1.2,100)},{label:"引用次數",val:citations,color:CI.secondary,pct:Math.min(citations*1.4,100)},{label:"引用率",val:`${cRate}%`,color:cRate>75?CI.green:CI.highlight,pct:cRate},{label:"情緒分數",val:`${sentiment}%`,color:sentiment>85?CI.green:CI.amber,pct:sentiment}].map(item=>(
               <div key={item.label} style={{ marginBottom:8 }}>
@@ -715,13 +1003,20 @@ const EngineTab = () => (
       </div>
       <div className="card">
         <SectionTitle>引擎功能支援矩陣</SectionTitle>
-        {[{feature:"品牌引用連結",s:[true,true,true,false,true]},{feature:"來源標注",s:[true,false,true,true,false]},{feature:"即時網路索引",s:[true,true,true,false,true]},{feature:"結構化資料解析",s:[true,true,false,true,false]},{feature:"多輪對話記憶",s:[true,true,false,true,true]},{feature:"圖片內容理解",s:[true,true,false,true,true]}].map((row,ri)=>(
+        {[
+          {feature:"品牌引用連結",    s:[true, true, true, false,true ]},
+          {feature:"Citation 來源標注",s:[true, false,true, true, false]},
+          {feature:"即時網路索引",    s:[true, true, true, false,true ]},
+          {feature:"結構化資料解析",  s:[true, true, false,true, true ]},
+          {feature:"多輪對話記憶",    s:[true, true, false,true, false]},
+          {feature:"PAA 整合",        s:[false,false,false,false,true ]},
+        ].map((row,ri)=>(
           <div key={ri} style={{ display:"grid", gridTemplateColumns:"1fr repeat(5,28px)", alignItems:"center", gap:5, marginBottom:9 }}>
             <span style={{ fontSize:12, color:CI.text }}>{row.feature}</span>
             {row.s.map((sv,si)=><div key={si} title={engines[si]} style={{ width:24, height:24, borderRadius:7, background:sv?`${engineColors[si]}22`:"#F0F0F5", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:sv?engineColors[si]:CI.mutedLight }}>{sv?"✓":"—"}</div>)}
           </div>
         ))}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr repeat(5,28px)", gap:5, marginTop:4 }}><span/>{engines.map((e,i)=><div key={i} style={{ fontSize:9.5, color:CI.mutedLight, textAlign:"center" }}>{e.slice(0,3)}</div>)}</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr repeat(5,28px)", gap:5, marginTop:4 }}><span/>{engines.map((e,i)=><div key={i} style={{ fontSize:9, color:CI.mutedLight, textAlign:"center" }}>{e.slice(0,3)}</div>)}</div>
       </div>
     </div>
   </div>
@@ -817,6 +1112,435 @@ const CompetitorTab = () => (
   </div>
 );
 
+/* ════════════════════════════════════════════
+   ACTION PLAN TAB — 行動方案
+════════════════════════════════════════════ */
+const ACTION_METRICS = [
+  {
+    cat: "市場熱度類", catColor: CI.primary, catBg: `${CI.primary}10`,
+    items: [
+      { name: "Prompts 數",     formula: "",                             meaning: "AI 引擎被問到這個話題的次數，代表市場關注熱度",  direction: "越高越好" },
+      { name: "Total Citation", formula: "",                             meaning: "AI 回答時引用的來源總數；高 → 競爭者多、議題成熟；低 → 藍海機會", direction: "越高競爭越激烈" },
+    ]
+  },
+  {
+    cat: "品牌表現類", catColor: CI.secondary, catBg: `${CI.secondary}15`,
+    items: [
+      { name: "Brand Mention",  formula: "",                             meaning: "AI 引用來源中提到品牌名稱的篇數",                direction: "越高越好" },
+      { name: "Domain Citation",formula: "",                             meaning: "AI 回答引用官網內容的次數",                       direction: "越高越好" },
+      { name: "SOV",            formula: "Brand Mention / Total Citation", meaning: "品牌聲量佔比；PR 投資成效的直接反映",          direction: "越高越好" },
+      { name: "DAS",            formula: "Domain Citation / Total Citation", meaning: "官網內容引用佔比；官網內容投資的直接反映", direction: "越高越好" },
+    ]
+  },
+  {
+    cat: "缺口指標", catColor: CI.red, catBg: "#FFF2F2",
+    items: [
+      { name: "Zero SOV Prompts",            formula: "",  meaning: "這些話題的 AI 回答裡完全未提及品牌 → 直接流失的曝光機會", direction: "越低越好（數字越大代表缺口越大）" },
+      { name: "Zero Domain Citation Prompts",formula: "",  meaning: "這些話題的 AI 回答裡完全未引用官網 → 官網內容覆蓋缺口",  direction: "越低越好（數字越大代表缺口越大）" },
+    ]
+  }
+];
+
+const MATRIX_CELLS = [
+  {
+    row: "high", col: "low",
+    title: "高競爭、低能見度",
+    icon: "🔴",
+    bg: "#FFF3F3", border: "#F88888", titleColor: "#C04040",
+    desc: "議題熱門但品牌幾乎缺席。大量競爭者搶佔 AI 引用份額。",
+    actions: ["加強 PR 創造品牌外部提及", "補強官網對應話題內容"],
+    tags: [{ label:"加強 PR", color:CI.highlight }, { label:"補強官網", color:"#E07050" }],
+  },
+  {
+    row: "high", col: "high",
+    title: "高競爭、高能見度",
+    icon: "🟢",
+    bg: "#F0FBF7", border: "#8FF4D2", titleColor: "#0F6E56",
+    desc: "議題成熟，品牌聲量表現良好。維持策略，監控競爭者動態。",
+    actions: ["維持現有 PR 節奏", "持續迭代官網內容保持領先"],
+    tags: [{ label:"維持監控", color:CI.green }],
+  },
+  {
+    row: "low", col: "low",
+    title: "藍海話題、尚未佈局",
+    icon: "🟡",
+    bg: "#FFF9F0", border: "#F5A623", titleColor: "#A05000",
+    desc: "競爭者還少，是搶先佔位的機會。投入 PR 製造外部討論。",
+    actions: ["搶先以 PR 讓品牌與議題產生連結", "建立早期引用優勢"],
+    tags: [{ label:"搶先 PR", color:CI.amber }],
+  },
+  {
+    row: "low", col: "high",
+    title: "藍海話題、已建立優勢",
+    icon: "🟢",
+    bg: "#F0FBF7", border: "#8FF4D2", titleColor: "#0F6E56",
+    desc: "早期佈局有效，目前幾乎無競爭。鞏固引用份額，建立話題權威。",
+    actions: ["持續生產官網內容", "建立品牌在此話題的權威地位"],
+    tags: [{ label:"鞏固陣地", color:CI.green }],
+  },
+];
+
+const ACTION_RULES = [
+  {
+    id: 1,
+    condition: "Total Citation 低",
+    conditionDetail: "話題熱度不足，AI 可引用的資料少",
+    action: "投資 PR — 創造議題熱度",
+    actionDetail: "發布新聞稿、媒體合作、KOL 報導，讓品牌出現在更多外部內容，提供 AI 更多可引用素材。",
+    targets: ["Total Citation ↑", "Brand Mention ↑"],
+    watch:   ["SOV 趨勢"],
+    color: CI.primary,
+    bg: `${CI.primary}08`,
+  },
+  {
+    id: 2,
+    condition: "Total Citation 高 + SOV 低",
+    conditionDetail: "話題熱，但引用來源幾乎未提及品牌",
+    action: "加強 PR — 提升品牌存在感",
+    actionDetail: "增加帶有品牌名稱的外部討論，確保 AI 在回答時能識別並引用品牌。",
+    targets: ["Brand Mention ↑", "SOV ↑"],
+    watch:   ["Zero SOV Prompts ↓"],
+    color: CI.highlight,
+    bg: "#FFF6F6",
+  },
+  {
+    id: 3,
+    condition: "Total Citation 高 + DAS 低",
+    conditionDetail: "話題熱，但 AI 引用的是競爭者網站而非官網",
+    action: "補強官網內容 — 提升引用份額",
+    actionDetail: "製作與此話題相關的官網頁面（深度文章、FAQ、技術說明），提升官網在 AI 引用資料庫的份量。",
+    targets: ["Domain Citation ↑", "DAS ↑"],
+    watch:   ["Zero Domain Citation Prompts ↓"],
+    color: CI.secondary,
+    bg: `${CI.secondary}10`,
+  },
+];
+
+// ── Per-topic mock data ──────────────────────────────────────────
+const TOPIC_DATA = [
+  {
+    id:"ai",    label:"AI 工具",   color:ST_COLOR["AI 工具"],
+    prompts:14, totalCitation:88, brandMention:58, domainCitation:22,
+    zeroSOV:2,  zeroDomain:5,
+    // derived
+    sov:    Math.round(58/88*100),
+    das:    Math.round(22/88*100),
+  },
+  {
+    id:"remote", label:"遠端工作", color:ST_COLOR["遠端工作"],
+    prompts:11, totalCitation:62, brandMention:18, domainCitation:7,
+    zeroSOV:5,  zeroDomain:8,
+    sov:    Math.round(18/62*100),
+    das:    Math.round(7/62*100),
+  },
+  {
+    id:"hr",     label:"HR 科技",  color:ST_COLOR["HR 科技"],
+    prompts:8,  totalCitation:14, brandMention:3,  domainCitation:1,
+    zeroSOV:6,  zeroDomain:7,
+    sov:    Math.round(3/14*100),
+    das:    Math.round(1/14*100),
+  },
+  {
+    id:"digital",label:"數位轉型", color:ST_COLOR["數位轉型"],
+    prompts:9,  totalCitation:74, brandMention:44, domainCitation:18,
+    zeroSOV:2,  zeroDomain:4,
+    sov:    Math.round(44/74*100),
+    das:    Math.round(18/74*100),
+  },
+  {
+    id:"comp",   label:"競品比較", color:ST_COLOR["競品比較"],
+    prompts:6,  totalCitation:52, brandMention:30, domainCitation:8,
+    zeroSOV:1,  zeroDomain:4,
+    sov:    Math.round(30/52*100),
+    das:    Math.round(8/52*100),
+  },
+];
+
+// Derive quadrant + action plan for a topic
+function deriveActions(t) {
+  const citHigh   = t.totalCitation >= 50;
+  const sovHigh   = t.sov >= 45;
+  const dasHigh   = t.das >= 25;
+  const brandOk   = sovHigh && dasHigh;
+  let quadrant, rules = [];
+
+  if (citHigh && brandOk)      quadrant = "green_high";
+  else if (citHigh && !brandOk) quadrant = "red_high";
+  else if (!citHigh && brandOk) quadrant = "green_low";
+  else                           quadrant = "yellow_low";
+
+  if (!citHigh)             rules.push("pr_heat");
+  if (citHigh && !sovHigh)  rules.push("pr_brand");
+  if (citHigh && !dasHigh)  rules.push("web_content");
+
+  return { quadrant, rules };
+}
+
+const QUADRANT_META = {
+  green_high:  { label:"高競爭、高能見度", icon:"🟢", bg:"#F0FBF7", border:"#8FF4D2", color:"#0F6E56" },
+  red_high:    { label:"高競爭、低能見度", icon:"🔴", bg:"#FFF3F3", border:"#F88888", color:"#C04040" },
+  green_low:   { label:"藍海話題、已建立優勢", icon:"🟢", bg:"#F0FBF7", border:"#8FF4D2", color:"#0F6E56" },
+  yellow_low:  { label:"藍海話題、尚未佈局", icon:"🟡", bg:"#FFF9F0", border:"#F5A623", color:"#A05000" },
+};
+
+const RULE_META = {
+  pr_heat:     {
+    label:"投資 PR — 創造議題熱度",
+    desc:"話題熱度不足，AI 可引用資料少。發布新聞稿、媒體合作、KOL 報導，提供 AI 可引用素材。",
+    targets:["Total Citation ↑","Brand Mention ↑"],
+    watch:["SOV 趨勢"],
+    color:CI.primary, bg:`${CI.primary}08`,
+  },
+  pr_brand:    {
+    label:"加強 PR — 提升品牌存在感",
+    desc:"話題熱但引用來源幾乎未提及品牌。增加帶有品牌名稱的外部討論，確保 AI 識別並引用品牌。",
+    targets:["Brand Mention ↑","SOV ↑"],
+    watch:["Zero SOV Prompts ↓"],
+    color:CI.highlight, bg:"#FFF6F6",
+  },
+  web_content: {
+    label:"補強官網內容 — 提升引用份額",
+    desc:"AI 引用的是競爭者網站而非官網。製作深度文章、FAQ、技術說明，提升官網在 AI 引用庫的份量。",
+    targets:["Domain Citation ↑","DAS ↑"],
+    watch:["Zero Domain Citation Prompts ↓"],
+    color:CI.secondary, bg:`${CI.secondary}10`,
+  },
+};
+
+// Mini progress bar
+const MiniBar = ({val, max, color}) => (
+  <div style={{ height:4, background:"#EEEEF5", borderRadius:3, overflow:"hidden", marginTop:3 }}>
+    <div style={{ height:"100%", borderRadius:3, width:`${Math.min(Math.round(val/max*100),100)}%`, background:color, transition:"width .6s" }}/>
+  </div>
+);
+
+const ActionPlanTab = () => {
+  const [selectedTopic, setSelectedTopic] = useState("ai");
+  const [hoveredCell, setHoveredCell] = useState(null);
+
+  const topic = TOPIC_DATA.find(t => t.id === selectedTopic) || TOPIC_DATA[0];
+  const { quadrant, rules } = deriveActions(topic);
+  const qMeta = QUADRANT_META[quadrant];
+
+  const metricMax = { prompts:20, totalCitation:100, brandMention:80, domainCitation:40, sov:100, das:100, zeroSOV:topic.prompts, zeroDomain:topic.prompts };
+
+  return (
+    <div style={{ animation:"fadeIn 0.25s ease" }}>
+      {/* Top row: topic pills + matrix legend */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {TOPIC_DATA.map(t => (
+            <button key={t.id} onClick={() => setSelectedTopic(t.id)}
+              style={{
+                padding:"8px 16px", borderRadius:22, border:"2px solid " + (selectedTopic===t.id?t.color:t.color+"40"),
+                background:selectedTopic===t.id?`${t.color}15`:"white",
+                color:selectedTopic===t.id?t.color:CI.muted,
+                fontWeight:selectedTopic===t.id?700:500, fontSize:13, cursor:"pointer", transition:"all .15s",
+                display:"flex", alignItems:"center", gap:7,
+              }}>
+              <span style={{ width:8, height:8, borderRadius:"50%", background:t.color, display:"inline-block" }}/>
+              {t.label}
+              <span style={{ fontSize:10, opacity:.7 }}>{t.prompts} prompts</span>
+            </button>
+          ))}
+        </div>
+        {/* Quadrant badge */}
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 14px", borderRadius:10, background:qMeta.bg, border:`1.5px solid ${qMeta.border}` }}>
+          <span style={{ fontSize:16 }}>{qMeta.icon}</span>
+          <span style={{ fontSize:13, fontWeight:700, color:qMeta.color }}>{qMeta.label}</span>
+        </div>
+      </div>
+
+      {/* ─── Metrics Grid ─────────────────────────── */}
+      <div style={{ marginBottom:18 }}>
+        {/* Row 1: 4 main metrics */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:10 }}>
+          {[
+            { name:"Prompts 數",     nameEn:"",              catLabel:"市場熱度",  val:topic.prompts,       unit:"",    maxVal:metricMax.prompts,       color:topic.color,   desc:"AI 引擎被問到這個話題的次數越多，代表市場關注度越高" },
+            { name:"Total Citation", nameEn:"",              catLabel:"市場熱度",  val:topic.totalCitation, unit:"",    maxVal:metricMax.totalCitation, color:topic.color,   desc:"AI 回答時引用的來源總數，越多代表競爭者越多、議題越成熟" },
+            { name:"Brand Mention",  nameEn:"",              catLabel:"品牌表現",  val:topic.brandMention,  unit:"",    maxVal:metricMax.brandMention,  color:CI.primary,    desc:"AI 引用來源中提到品牌名稱的篇數", formula:`SOV = ${topic.sov}%` },
+            { name:"Domain Citation",nameEn:"",              catLabel:"品牌表現",  val:topic.domainCitation,unit:"",    maxVal:metricMax.domainCitation,color:CI.secondary,  desc:"AI 回答引用官方網站內容的次數",     formula:`DAS = ${topic.das}%` },
+          ].map((m, i) => (
+            <div key={i} className="card" style={{ padding:"16px 18px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+                <div>
+                  <div style={{ fontSize:12.5, fontWeight:700, color:CI.text }}>{m.name}</div>
+                  <div style={{ fontSize:10, color:CI.mutedLight, marginTop:1, fontWeight:600, letterSpacing:.05, textTransform:"uppercase" }}>{m.catLabel}</div>
+                </div>
+                {m.formula && (
+                  <span style={{ fontSize:10, fontFamily:"monospace", color:CI.primary, background:`${CI.primary}10`, padding:"2px 7px", borderRadius:6, fontWeight:700 }}>{m.formula}</span>
+                )}
+              </div>
+              <div style={{ fontSize:26, fontWeight:800, color:m.color, fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>
+                {m.val}<span style={{ fontSize:13, color:CI.muted, fontWeight:400 }}>{m.unit}</span>
+              </div>
+              <MiniBar val={m.val} max={m.maxVal} color={m.color}/>
+              <div style={{ fontSize:11, color:CI.muted, marginTop:7, lineHeight:1.5 }}>{m.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Row 2: SOV + DAS ratio cards */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+          {[
+            { name:"SOV", label:"Share of Voice", val:topic.sov, unit:"%", color:CI.primary,   formula:"Brand Mention / Total Citation", good:topic.sov>=45, thresh:45 },
+            { name:"DAS", label:"Domain Auth. Share", val:topic.das, unit:"%", color:CI.secondary, formula:"Domain Citation / Total Citation", good:topic.das>=25, thresh:25 },
+          ].map((m,i) => (
+            <div key={i} className="card" style={{ padding:"16px 18px", border:"1.5px solid " + (m.good ? m.color+"50" : CI.border), background:m.good ? m.color+"05" : "#FFFFFB" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:CI.text }}>{m.name}</div>
+                  <div style={{ fontSize:10.5, color:CI.muted }}>{m.label}</div>
+                </div>
+                <span style={{ fontSize:10, color:m.good?m.color:CI.red, background:m.good ? m.color+"12" : "#FFF0F0", border:"1px solid " + (m.good ? m.color+"30" : "#FFCCCC"), padding:"2px 8px", borderRadius:20, fontWeight:700 }}>
+                  {m.good?"✓ 良好":"⚠ 偏低"}
+                </span>
+              </div>
+              <div style={{ fontSize:28, fontWeight:800, color:m.color, fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>
+                {m.val}<span style={{ fontSize:13, color:CI.muted }}>%</span>
+              </div>
+              <MiniBar val={m.val} max={100} color={m.good?m.color:CI.red}/>
+              <div style={{ fontSize:10.5, color:CI.muted, marginTop:7, fontFamily:"monospace" }}>{m.formula}</div>
+              <div style={{ fontSize:10.5, color:CI.mutedLight, marginTop:4 }}>基準：{m.thresh}% 以上視為良好</div>
+            </div>
+          ))}
+
+          {/* Zero SOV */}
+          <div className="card" style={{ padding:"16px 18px", border:`1.5px solid ${topic.zeroSOV>topic.prompts*.3?"#F88888":CI.border}`, background:topic.zeroSOV>topic.prompts*.3?"#FFF5F5":"#FFFFFB" }}>
+            <div style={{ fontSize:12.5, fontWeight:700, color:CI.red, marginBottom:2 }}>Zero SOV Prompts</div>
+            <div style={{ fontSize:11, color:CI.muted, marginBottom:6 }}>品牌完全缺席的話題數</div>
+            <div style={{ fontSize:26, fontWeight:800, color:CI.red, fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>
+              {topic.zeroSOV}<span style={{ fontSize:13, color:CI.muted }}> / {topic.prompts}</span>
+            </div>
+            <MiniBar val={topic.zeroSOV} max={topic.prompts} color={CI.red}/>
+            <div style={{ fontSize:11, color:CI.muted, marginTop:7, lineHeight:1.5 }}>在這些 AI 回答裡完全未提及品牌 → 直接流失的曝光機會</div>
+          </div>
+
+          {/* Zero Domain */}
+          <div className="card" style={{ padding:"16px 18px", border:`1.5px solid ${topic.zeroDomain>topic.prompts*.4?"#A4B1EF":CI.border}`, background:topic.zeroDomain>topic.prompts*.4?"#F5F5FF":"#FFFFFB" }}>
+            <div style={{ fontSize:12.5, fontWeight:700, color:"#5060A0", marginBottom:2 }}>Zero Domain Citation Prompts</div>
+            <div style={{ fontSize:11, color:CI.muted, marginBottom:6 }}>官網完全缺席的話題數</div>
+            <div style={{ fontSize:26, fontWeight:800, color:"#6768A6", fontFamily:"'Syne',sans-serif", lineHeight:1, marginBottom:4 }}>
+              {topic.zeroDomain}<span style={{ fontSize:13, color:CI.muted }}> / {topic.prompts}</span>
+            </div>
+            <MiniBar val={topic.zeroDomain} max={topic.prompts} color="#A4B1EF"/>
+            <div style={{ fontSize:11, color:CI.muted, marginTop:7, lineHeight:1.5 }}>在這些 AI 回答裡完全未引用官網 → 官網內容覆蓋缺口</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Divider ─────────────────────────── */}
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18 }}>
+        <div style={{ flex:1, height:1, background:CI.border }}/>
+        <div style={{ fontSize:11.5, fontWeight:700, color:CI.muted, display:"flex", alignItems:"center", gap:6 }}>
+          <span style={{ fontSize:14 }}>↓</span> 依上方指標推導行動建議
+        </div>
+        <div style={{ flex:1, height:1, background:CI.border }}/>
+      </div>
+
+      {/* ─── Quadrant position ─────────────────────────── */}
+      <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:16, marginBottom:16, alignItems:"start" }}>
+        {/* Mini matrix */}
+        <div style={{ width:160 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:CI.mutedLight, letterSpacing:.08, textTransform:"uppercase", marginBottom:8 }}>競爭態勢矩陣</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
+            {MATRIX_CELLS.map((cell,i) => {
+              const isActive =
+                (quadrant==="red_high"   && cell.row==="high" && cell.col==="low")  ||
+                (quadrant==="green_high" && cell.row==="high" && cell.col==="high") ||
+                (quadrant==="yellow_low" && cell.row==="low"  && cell.col==="low")  ||
+                (quadrant==="green_low"  && cell.row==="low"  && cell.col==="high");
+              return (
+                <div key={i} style={{
+                  height:60, borderRadius:8, padding:"7px 9px",
+                  background:isActive?cell.bg:"#F0F0F5",
+                  border:`2px solid ${isActive?cell.border:CI.border}`,
+                  display:"flex", flexDirection:"column", justifyContent:"space-between",
+                }}>
+                  <div style={{ fontSize:9, fontWeight:700, color:isActive?cell.titleColor:CI.mutedLight, lineHeight:1.3 }}>{cell.icon} {cell.title}</div>
+                  {isActive && <div style={{ fontSize:8, color:cell.titleColor, fontWeight:700 }}>◀ 目前位置</div>}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop:6, fontSize:9.5, color:CI.muted, lineHeight:1.5 }}>
+            <span style={{ color:CI.text, fontWeight:600 }}>縱：</span>Total Citation<br/>
+            <span style={{ color:CI.text, fontWeight:600 }}>橫：</span>SOV ＋ DAS
+          </div>
+        </div>
+
+        {/* Quadrant detail card */}
+        <div style={{ background:qMeta.bg, border:`2px solid ${qMeta.border}`, borderRadius:14, padding:"18px 22px" }}>
+          <div style={{ fontSize:16, fontWeight:800, color:qMeta.color, fontFamily:"'Syne',sans-serif", marginBottom:6 }}>
+            {qMeta.icon} {qMeta.label}
+          </div>
+          <div style={{ fontSize:13, color:CI.muted, lineHeight:1.7 }}>
+            {quadrant==="red_high"   && `「${topic.label}」話題競爭激烈（Total Citation = ${topic.totalCitation}），但品牌能見度不足（SOV ${topic.sov}%、DAS ${topic.das}%）。需同步加強 PR 與官網內容投資。`}
+            {quadrant==="green_high" && `「${topic.label}」話題競爭激烈，且品牌能見度強（SOV ${topic.sov}%、DAS ${topic.das}%）。維持現有策略，持續監控競爭者動態。`}
+            {quadrant==="yellow_low" && `「${topic.label}」話題尚未成熟（Total Citation = ${topic.totalCitation}），競爭者少。這是搶先佈局的機會，投入 PR 製造外部討論。`}
+            {quadrant==="green_low"  && `「${topic.label}」話題尚在早期，品牌已建立優勢（SOV ${topic.sov}%、DAS ${topic.das}%）。鞏固引用份額，建立此話題的品牌權威。`}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Action rules ─────────────────────────── */}
+      {rules.length === 0 ? (
+        <div className="card" style={{ textAlign:"center", padding:"30px", color:CI.muted }}>
+          <div style={{ fontSize:24, marginBottom:8 }}>✅</div>
+          <div style={{ fontSize:14, fontWeight:700, color:CI.green }}>此話題目前表現良好，維持現有策略即可</div>
+          <div style={{ fontSize:12.5, marginTop:6, color:CI.muted }}>持續監控 SOV 與 DAS 趨勢，確保領先優勢不流失。</div>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize:12.5, fontWeight:700, color:CI.text, marginBottom:12, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ background:topic.color, color:"white", borderRadius:20, padding:"2px 10px", fontSize:11 }}>
+              {rules.length} 條行動建議
+            </span>
+            針對「{topic.label}」Topic
+          </div>
+          {rules.map((ruleId, ri) => {
+            const r = RULE_META[ruleId];
+            return (
+              <div key={ri} className="card" style={{ marginBottom:10, borderLeft:`4px solid ${r.color}`, padding:"18px 22px" }}>
+                <div style={{ display:"flex", alignItems:"flex-start", gap:14 }}>
+                  {/* Rule number */}
+                  <div style={{ width:32, height:32, borderRadius:9, background:r.bg, border:`2px solid ${r.color}40`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <span style={{ fontSize:14, fontWeight:800, color:r.color }}>P{ri+1}</span>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:14.5, fontWeight:700, color:CI.text, marginBottom:5, fontFamily:"'Syne',sans-serif" }}>{r.label}</div>
+                    <div style={{ fontSize:12.5, color:CI.muted, lineHeight:1.7, marginBottom:12 }}>{r.desc}</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                      <div style={{ background:`${r.color}08`, borderRadius:10, padding:"11px 14px", border:`1px solid ${r.color}20` }}>
+                        <div style={{ fontSize:9.5, fontWeight:700, letterSpacing:.1, textTransform:"uppercase", color:r.color, marginBottom:8 }}>目標指標</div>
+                        {r.targets.map((t, ti) => (
+                          <div key={ti} style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5, fontWeight:600, color:CI.text, marginBottom:4 }}>
+                            <span style={{ width:16, height:16, borderRadius:4, background:r.color, color:"white", fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>↑</span>
+                            {t}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ background:"#F8F8FC", borderRadius:10, padding:"11px 14px", border:`1px solid ${CI.border}` }}>
+                        <div style={{ fontSize:9.5, fontWeight:700, letterSpacing:.1, textTransform:"uppercase", color:CI.mutedLight, marginBottom:8 }}>觀察指標</div>
+                        {r.watch.map((w, wi) => (
+                          <div key={wi} style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5, fontWeight:600, color:CI.text, marginBottom:4 }}>
+                            <span style={{ width:16, height:16, borderRadius:4, background:CI.mutedLight, color:"white", fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>◎</span>
+                            {w}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SettingsTab = () => {
   const [stab, setStab] = useState("queries");
   const [queries, setQueries] = useState([{id:1,text:"AI 協作工具推薦",cat:"產品",active:true},{id:2,text:"遠端工作平台比較",cat:"產品",active:true},{id:3,text:"企業數位轉型工具",cat:"行銷",active:true},{id:4,text:"HR 科技解決方案",cat:"行銷",active:true},{id:5,text:"團隊溝通工具",cat:"產品",active:false},{id:6,text:"專案管理軟體",cat:"競品",active:true}]);
@@ -881,7 +1605,7 @@ const SettingsTab = () => {
       {stab==="project" && (
         <div className="card" style={{ maxWidth:540 }}>
           <SectionTitle>專案設定</SectionTitle>
-          {[{l:"品牌名稱",v:"Teleworker"},{l:"監控網域",v:"teleworker.io"},{l:"語系",v:"zh-TW"}].map((r,i)=>(
+          {[{l:"品牌名稱",v:"Teleworker"},{l:"監控網域",v:"teleworker.com.tw"},{l:"語系",v:"zh-TW"}].map((r,i)=>(
             <div key={i} style={{ marginBottom:14 }}><label style={{ fontSize:11.5, color:CI.muted, fontWeight:600, display:"block", marginBottom:5 }}>{r.l}</label><input defaultValue={r.v} style={inpStyle}/></div>
           ))}
           <div style={{ marginBottom:14 }}><label style={{ fontSize:11.5, color:CI.muted, fontWeight:600, display:"block", marginBottom:5 }}>更新頻率</label>
@@ -899,8 +1623,8 @@ const SettingsTab = () => {
 
 /* ════ MAIN APP ════ */
 function GEOApp() {
-  const [tab, setTab] = useState("overview");
-  const [subTab, setSubTab] = useState("seed");
+  const [tab, setTab]         = useState("overview");
+  const [subTab, setSubTab]   = useState("seed");
   const [project, setProject] = useState(1);
   const [exploOpen, setExploOpen] = useState(false);
 
@@ -910,6 +1634,7 @@ function GEOApp() {
     { id:"engines",     label:"引擎分析", icon:"◑" },
     { id:"queries",     label:"查詢監控", icon:"◷" },
     { id:"competitor",  label:"競品對比", icon:"⊕" },
+    { id:"actions",     label:"行動方案", icon:"◎" },
     { id:"settings",    label:"設定",    icon:"◌" },
   ];
 
@@ -920,11 +1645,12 @@ function GEOApp() {
     engines:    { title:"引擎分析",       crumb:"引擎分析" },
     queries:    { title:"查詢監控",       crumb:"查詢監控" },
     competitor: { title:"競品對比",       crumb:"競品對比" },
-    settings:   { title:"設定",           crumb:"設定" },
+    actions:    { title:"行動方案",        crumb:"行動方案" },
+    settings:   { title:"設定",          crumb:"設定" },
   };
 
   const activeKey = tab === "exploration" ? subTab : tab;
-  const meta = pageMeta[activeKey] || { title: activeKey, crumb: activeKey };
+  const meta = pageMeta[activeKey] || { title:activeKey, crumb:activeKey };
 
   const renderContent = () => {
     if (tab==="overview")    return <OverviewTab/>;
@@ -932,6 +1658,7 @@ function GEOApp() {
     if (tab==="engines")     return <EngineTab/>;
     if (tab==="queries")     return <QueryTab/>;
     if (tab==="competitor")  return <CompetitorTab/>;
+    if (tab==="actions")     return <ActionPlanTab/>;
     if (tab==="settings")    return <SettingsTab/>;
   };
 
@@ -987,7 +1714,7 @@ function GEOApp() {
         {/* Sidebar footer */}
         <div style={{ padding:"12px 16px", borderTop:`1px solid ${CI.border}` }}>
           <div style={{ background:"#F0F0F5", borderRadius:7, padding:"4px 9px", fontSize:10, color:CI.muted, textAlign:"center" }}>更新週期：每 6 小時</div>
-          <div style={{ marginTop:6, fontSize:10, color:CI.mutedLight, textAlign:"center" }}>GEO Monitor v2.0 · Teleworker</div>
+          <div style={{ marginTop:6, fontSize:10, color:CI.mutedLight, textAlign:"center" }}>GEO Monitor v2.1 · Teleworker</div>
         </div>
       </div>
 
@@ -1010,8 +1737,8 @@ function GEOApp() {
         {renderContent()}
 
         <div style={{ marginTop:24, padding:"14px 0", borderTop:`1px solid ${CI.border}`, display:"flex", justifyContent:"space-between", fontSize:11.5, color:CI.mutedLight }}>
-          <span>GEO Monitor v2.0 · Teleworker Internal Tool</span>
-          <span>資料來源：ChatGPT / Gemini / Perplexity / Claude / Copilot · 最後更新：今日 06:00</span>
+          <span>GEO Monitor v2.1 · Teleworker Internal Tool</span>
+          <span>資料來源：ChatGPT / Gemini / Perplexity / Claude / AI Overview PAA · 最後更新：今日 06:00</span>
         </div>
       </div>
     </div>
